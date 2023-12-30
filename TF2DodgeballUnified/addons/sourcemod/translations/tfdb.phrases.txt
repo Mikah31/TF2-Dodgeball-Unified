@@ -1,0 +1,126 @@
+"Phrases"
+{
+	"Command_DodgeballDisabled"
+	{
+		"en"		"[{olive}TFDB{default]}] Dodgeball is not enabled."
+	}
+
+	"Command_DisabledByConfig"
+	{
+		"en"		"[{olive}TFDB{default}] This command is disabled in rocket config."
+	}
+
+	"Dodgeball_Death_Message"
+	{
+		"#format"	"{1:N},{2:.0f},{3:i}"
+		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling {red}{2}{default} MpH at {red}{3}{default} deflections"
+	}
+
+	"Dodgeball_Hud_Speedometer"
+	{
+		"#format"	"{1:.0f},{2:i},"
+		"en"		"Speed : {1} MpH | Deflections : {2}"
+	}
+
+	"Dodgeball_Config_Loading_Default"
+	{
+		"en"		"[{olive}TFDB{default}] Config not supplied, using \"{darkorange}general.cfg{default}\"."
+	}
+
+	"Dodgeball_Config_Loading_New_Config"
+	{
+		"#format"	"{1:s}"
+		"en"		"[{olive}TFDB{default}] Loading config \"{darkorange}{1}{default}\"."
+	}
+
+	"Dodgeball_Config_Not_Found"
+	{
+		"en"		"[{olive}TFDB{default}] Could not find specified config file, config did not change."
+	}
+
+	"Dodgeball_New_Config_Announce_All"
+	{
+		"en"		"[{olive}TFDB{default}] Loaded new rocket config."
+	}
+
+	"Dodgeball_Delay_Announce_All"
+	{
+		"#format"	"{1:N}"
+		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} is delaying, the rocket will now speed up."
+	}
+
+	"Dodgeball_Steal_Warning_Client"
+	{
+		"#format"	"{1:i},{2:i}"
+		"en"		"[{olive}TFDB{default}] Do not steal rockets. [Warning {darkorange}{1}{default} / {darkorange}{2}{default}]"
+	}
+
+	"Dodgeball_Steal_Announce_All"
+	{
+		"#format"	"{1:N},{2:N}"
+		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} stole {steelblue}{2}{default}'s rocket!"
+	}
+
+	"Dodgeball_Steal_Slay_Client"
+	{
+		"en"		"[{olive}TFDB{default}] You have been slain for stealing rockets."
+	}
+
+	"Dodgeball_Steal_Announce_Slay_All"
+	{
+		"#format"	"{1:N}"
+		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} was slain for stealing rockets."
+	}
+
+	"Dodgeball_Vote_Conflict"
+	{
+		"en"		"[{olive}TFDB{default}] There is currently another vote in progress."
+	}
+
+	"Dodgeball_FFAVote_Cooldown"
+	{
+		"#format"	"{1:.0f}"
+		"en"		"[{olive}TFDB{default}] Voting for {darkmagenta}FFA{default} is in cooldown for {darkorange}{1}{default} seconds."
+	}
+	
+	"Dodgeball_FFAVote_Failed"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} vote {red}failed{default}."
+	}
+	
+	"Dodgeball_FFAVote_Enabled"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} is now {community}enabled{default}."
+	}
+		
+	"Dodgeball_FFAVote_Disabled"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} is now {red}disabled{default}."
+	}
+
+	"Dodgeball_NERVote_Cooldown"
+	{
+		"#format"	"{1:.0f}"
+		"en"		"[{olive}TFDB{default}] Voting for {darkmagenta}NER{default} is in cooldown for {darkorange}{1}{default} seconds."
+	}
+	
+	"Dodgeball_NERVote_Failed"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} vote {red}failed{default}."
+	}
+	
+	"Dodgeball_NERVote_Enabled"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {community}enabled{default}."
+	}
+		
+	"Dodgeball_NERVote_Disabled"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {red}disabled{default}."
+	}
+
+	"Dodgeball_NER_Not_Enough_Players_Disabled"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {red}disabled{default} due to not enough players."
+	}
+}
