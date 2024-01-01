@@ -13,7 +13,7 @@
 
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.0.0"
+#define PLUGIN_VERSION     "1.1.0"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -136,8 +136,8 @@ enum struct TFDBConfig
 	float fTurnrateMin;
 	float fTurnrateMax;
 
-	float fDragTimeMin;
 	float fDragTimeMax;
+	float fTurningDelay;
 
 	int iMaxRockets;
 	float fSpawnInterval;
@@ -191,6 +191,9 @@ public void OnPluginStart()
 	// NER
 	RegAdminCmd("sm_ner", CmdToggleNER, ADMFLAG_CONFIG, "Forcefully toggle NER (Never ending rounds)");
 	RegConsoleCmd("sm_votener", CmdVoteNER, "Vote to toggle NER");
+
+	// Fixes soundbug (looping flamethrower sound) https://gitlab.com/nanochip/fixfireloop/-/blob/master/scripting/fixfireloop.sp
+	AddTempEntHook("TFExplosion", OnTFExplosion);
 }
 
 public void OnConfigsExecuted()
@@ -318,14 +321,14 @@ public void OnGameFrame()
 		static float fRocketPosition[3]; GetEntPropVector(rocket.iEntity, Prop_Data, "m_vecOrigin", fRocketPosition);
 
 		// Dragging
-		if (fTimeSinceLastDeflect <= currentConfig.fDragTimeMax && fTimeSinceLastDeflect >= currentConfig.fDragTimeMin)
+		if (fTimeSinceLastDeflect <= currentConfig.fDragTimeMax)
 		{
 			static float fViewAngles[3];
 			GetClientEyeAngles(rocket.iOwner, fViewAngles);
 			GetAngleVectors(fViewAngles, rocket.fDirection, NULL_VECTOR, NULL_VECTOR);
 
 			// Select new target if needed, rocket.fDirection has been changed already in above code for new target calculation
-			if ((fTimeSinceLastDeflect >= currentConfig.fDragTimeMin) && !rocket.bHasTarget)
+			if (!rocket.bHasTarget)
 			{
 				rocket.iTarget = SelectTarget(rocket.iTeam, rocket.iOwner, fRocketPosition, rocket.fDirection);
 
@@ -341,8 +344,8 @@ public void OnGameFrame()
 				rocket.EmitRocketSound(SOUND_ALERT);
 			}
 		}
-		// Turn to target if not dragging
-		else if (rocket.bHasTarget)
+		// Turn to target if not dragging & outside of delay till turning
+		else if (rocket.bHasTarget && fTimeSinceLastDeflect >= currentConfig.fTurningDelay + currentConfig.fDragTimeMax)
 		{
 			static float fDirectionToTarget[3], fPlayerPosition[3];
 
@@ -1083,8 +1086,8 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	cfg.GetFloat("gameplay.rocket spawn interval", currentConfig.fSpawnInterval);
 
 	// Rocket dragging
-	cfg.GetFloat("rocket.drag time min", currentConfig.fDragTimeMin);
 	cfg.GetFloat("rocket.drag time max", currentConfig.fDragTimeMax);
+	cfg.GetFloat("rocket.turning delay", currentConfig.fTurningDelay);
 
 	// Rocket bouncing
 	cfg.GetBool("rocket.down spiking", currentConfig.bDownspikes);	// There was a bug in .GetBool in cfgmap.inc; Changed line 656: sizeof(strval)-1 -> sizeof(strval)
@@ -1607,4 +1610,46 @@ int GetTeamRandomAliveClient(int iTeam)
 	}
 	
 	return iCount == 0 ? -1 : iClients[GetRandomInt(0, iCount - 1)];
+}
+
+// https://gitlab.com/nanochip/fixfireloop/-/blob/master/scripting/fixfireloop.sp
+// The most significant change is Plugin_Continue instead of Plugin_Stop
+// (This was missing from the original plugin)
+
+public Action OnTFExplosion(const char[] strTEName, const int[] iClients, int iNumClients, float fDelay)
+{
+	static int bIgnoreHook;
+	
+	if (!g_bEnabled)
+	{
+		return Plugin_Continue;
+	}
+	
+	if (bIgnoreHook)
+	{
+		bIgnoreHook = false;
+		
+		return Plugin_Continue;
+	}
+	
+	TE_Start("TFExplosion");
+	
+	static float vecNormal[3]; TE_ReadVector("m_vecNormal", vecNormal);
+	
+	TE_WriteFloat("m_vecOrigin[0]", TE_ReadFloat("m_vecOrigin[0]"));
+	TE_WriteFloat("m_vecOrigin[1]", TE_ReadFloat("m_vecOrigin[1]"));
+	TE_WriteFloat("m_vecOrigin[2]", TE_ReadFloat("m_vecOrigin[2]"));
+	
+	TE_WriteVector("m_vecNormal", vecNormal);
+	
+	TE_WriteNum("m_iWeaponID", TE_ReadNum("m_iWeaponID"));
+	TE_WriteNum("entindex", TE_ReadNum("entindex"));
+	TE_WriteNum("m_nDefID", -1);
+	TE_WriteNum("m_nSound", TE_ReadNum("m_nSound"));
+	TE_WriteNum("m_iCustomParticleIndex", TE_ReadNum("m_iCustomParticleIndex"));
+	
+	bIgnoreHook = true;
+	TE_Send(iClients, iNumClients, fDelay);
+
+	return Plugin_Stop;
 }
