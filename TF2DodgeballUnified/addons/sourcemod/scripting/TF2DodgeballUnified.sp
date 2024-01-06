@@ -13,7 +13,7 @@
 
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.1.0"
+#define PLUGIN_VERSION     "1.1.1"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -379,7 +379,7 @@ public void OnGameFrame()
 					case(1): // Vertical wave
 					{
 						// (Attempted) recreation of the 'classic' way of waving
-						rocket.fDirection[2] += FloatAbs(currentConfig.fWaveAmplitude * Cosine(-fPhase));
+						rocket.fDirection[2] += currentConfig.fWaveAmplitude * -Cosine(fPhase);
 					}
 					case(2): // Horizontal wave
 					{
