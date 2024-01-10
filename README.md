@@ -11,7 +11,7 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`. This plugin is NOT co
 
 # Removed features (as of now, these could be added later)
 - Multiple types of rockets with spawning chances within 1 config.
-- The ability to make subplugins using natives.
+- ~The ability to make subplugins using natives.~ (Added since 1.2.0)
 - FFA / Hitting team rockets do not automatically disable once it is player vs bot, some bots break whenever FFA or team airblast rockets are enabled.
 - Taunt killing has not been disabled.
 - Nukes are completely removed.
@@ -35,6 +35,7 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`. This plugin is NOT co
 - Rockets are now struct enums, which should help creating subplugins. (for the future)
 - Delay time now only increases whilst in orbitting range.
 - Bounce time (when downspiking) has been added instead of scaling the bounce vector, this can be used to create bigger (or smaller) bounces.
+- **Reworked subplugin support, uses rocket & config structures** (Added since 1.2.0)
 
 # Commands
 - **sm_loadconfig** (*config.cfg*) : Loads specified config file, if no config file specified will load "general.cfg". (config must be within "addons/sourcemod/configs/dodgeball" directory)
