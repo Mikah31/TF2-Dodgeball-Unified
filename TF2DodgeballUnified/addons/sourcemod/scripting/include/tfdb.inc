@@ -36,20 +36,24 @@ enum struct Rocket
 	bool bRecentlyBounced;	
 
 	float fDirection[3];
+	
+	// Curving x & y directions
+	float fCurveDirection[2];
+	float fCurveFactor;
 
 	// Starting distance to target, used for calculating phase in wave
 	float fWaveDistance;
 
-	bool InOrbit()
+	// Used for checking if the rocket is within a certain range (orbitting, waving, etc..)
+	// We shouldn't wave in a certain range to target for example
+	float RangeToTarget()
 	{
-		if (!this.bHasTarget) return false;
+		if (!this.bHasTarget) return 0.0;
 
 		static float fTargetPosition[3]; GetClientEyePosition(this.iTarget, fTargetPosition);
 		static float fRocketPosition[3]; GetEntPropVector(this.iEntity, Prop_Data, "m_vecOrigin", fRocketPosition);
 
-		if (GetVectorDistance(fTargetPosition, fRocketPosition) < 300.0) // 300.0 is roughly airblasting distance
-			return true;
-		return false;
+		return GetVectorDistance(fTargetPosition, fRocketPosition);
 	}
 
 	void EmitRocketSound(char[] strPathSound, int iEntitySource = 0)
@@ -74,11 +78,17 @@ enum struct TFDBConfig
 	char strDamageFormula[256]; // gives us an effective max equation length of worst case max ~128 characters due to added spacers
 	char strSpeedFormula[256];
 	char strTurnrateFormula[256];
+	char strCurveFormula[256];
 
 	float fSpeedMin;
 	float fSpeedMax;
 	float fTurnrateMin;
 	float fTurnrateMax;
+	float fCurveMin;
+	float fCurveMax;
+
+	int iThresholdA;
+	int iThresholdB;
 
 	float fDragTimeMax;
 	float fTurningDelay;
@@ -98,6 +108,8 @@ enum struct TFDBConfig
 	bool bStolenRocketsDoDamage;
 	
 	float fDelayTime; // Delay time before rocket starts speeding up
+
+	float fOrbitFactor;
 
 	bool bPushPrevention;
 	float fPushScale;
@@ -126,6 +138,12 @@ enum struct TFDBConfig
 #define SOUND_SPAWN 		"weapons/sentry_rocket.wav"
 #define SOUND_SPEEDUP   	"misc/doomsday_lift_warning.wav"
 #define SOUND_NER_RESPAWNED	")ambient/alarms/doomsday_lift_alarm.wav"
+
+// ---- Macros -----------------------------------------
+// Rocket behaviour (can) change within these ranges to target
+#define ORBIT_RANGE 	250.0	// We are in orbit inside of this range
+#define WAVE_RANGE		300.0	// We wave outside of this range
+#define CURVE_RANGE		500.0	// We curve outside of this range
 
 // ---- Forwards ---------------------------------------
 
@@ -269,6 +287,14 @@ native int TFDB_GetRocketByIndex(int iIndex, any rocket[sizeof(Rocket)]);
 native bool TFDB_SetRocketByIndex(int iIndex, any rocket[sizeof(Rocket)]);
 
 /**
+ * Checks if the player is a rocket's target.
+ * 
+ * @return		True if player is a rocket's target, false otherwise.
+ * @error		Target does not exist.
+ */
+native bool TFDB_IsRocketTarget(int iClient);
+
+/**
  * Gets config currently in use.
  * 
  * @param config    Buffer to store config structure in. (you can use TFDBConfig structure!)
@@ -292,11 +318,25 @@ native int TFDB_SetCurrentConfig(any config[sizeof(TFDBConfig)]);
 native bool TFDB_IsFFAenabled();
 
 /**
+ * Toggles FFA mode.
+ * 
+ * @noreturn
+ */
+native void TFDB_ToggleFFA();
+
+/**
  * Checks if NER is currently enabled.
  * 
  * @return		True if enabled, false otherwise
  */
 native bool TFDB_IsNERenabled();
+
+/**
+ * Toggles NER mode.
+ * 
+ * @noreturn
+ */
+native void TFDB_ToggleNER();
 
 public SharedPlugin __pl_TFDB =
 {
@@ -318,9 +358,12 @@ public void __pl_TFDB_SetNTVOptional()
 	MarkNativeAsOptional("TFDB_FindRocketByEntity");
 	MarkNativeAsOptional("TFDB_GetRocketByIndex");
 	MarkNativeAsOptional("TFDB_SetRocketByIndex");
+	MarkNativeAsOptional("TFDB_IsRocketTarget");
 	MarkNativeAsOptional("TFDB_GetCurrentConfig");
 	MarkNativeAsOptional("TFDB_SetCurrentConfig");
 	MarkNativeAsOptional("TFDB_IsFFAenabled");
+	MarkNativeAsOptional("TFDB_ToggleFFA");
 	MarkNativeAsOptional("TFDB_IsNERenabled");
+	MarkNativeAsOptional("TFDB_ToggleNER");
 }
 #endif

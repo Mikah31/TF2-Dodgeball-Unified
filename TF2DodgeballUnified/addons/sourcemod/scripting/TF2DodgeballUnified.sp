@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.2.0"
+#define PLUGIN_VERSION     "1.3.0"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -105,10 +105,13 @@ public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] strError, int iE
 	CreateNative("TFDB_FindRocketByEntity", Native_FindRocketByEntity);
 	CreateNative("TFDB_GetRocketByIndex", Native_GetRocketByIndex);
 	CreateNative("TFDB_SetRocketByIndex", Native_SetRocketByIndex);
+	CreateNative("TFDB_IsRocketTarget", Native_IsRocketTarget);
 	CreateNative("TFDB_GetCurrentConfig", Native_GetCurrentConfig);
 	CreateNative("TFDB_SetCurrentConfig", Native_SetCurrentConfig);
 	CreateNative("TFDB_IsFFAenabled", Native_IsFFAenabled);
+	CreateNative("TFDB_ToggleFFA", Native_ToggleFFA);
 	CreateNative("TFDB_IsNERenabled", Native_IsNERenabled);
+	CreateNative("TFDB_ToggleNER", Native_ToggleNER);
 
 	SetupForwards();
 	
@@ -146,8 +149,6 @@ void EnableDodgeball()
 {
 	if (g_bEnabled) return;
 
-	ParseConfig();
-
 	g_rockets = new ArrayList(sizeof(Rocket));
 
 	// Hooking events
@@ -176,6 +177,9 @@ void EnableDodgeball()
 
 	// Execute dodgeball server config, infinite airblast & arena mode
 	ServerCommand("exec \"sourcemod/dodgeball_enable.cfg\"");
+
+	// Parsing rocket configs
+	ParseConfig();
 
 	g_bEnabled = true;
 }
@@ -292,20 +296,57 @@ public void OnGameFrame()
 			MakeVectorFromPoints(fRocketPosition, fPlayerPosition, fDirectionToTarget);
 			NormalizeVector(fDirectionToTarget, fDirectionToTarget);
 
-			// Clamp turnrate between 0.0 & 1.0 (0.0 > it would turn wrong way, > 1.0 it would overturn)
-			rocket.fTurnrate = Clamp(rocket.fTurnrate, 0.0, 1.0);
+			// Fake rocket curving without affecting velocity
+			// Previously this was a side-effect of limiting sv_maxvelocity
+			if (rocket.RangeToTarget() > CURVE_RANGE && rocket.fCurveFactor)
+			{
+				float fDistanceFactor = CURVE_RANGE / rocket.RangeToTarget();
+				static float fDeltaToTarget[3]; SubtractVectors(fDirectionToTarget, rocket.fDirection, fDeltaToTarget);
+				
+				if (!rocket.fCurveDirection[0])
+				{
+					// This is might not be very intuitive, but it works well enough
+					// We curve away from target
+					rocket.fCurveDirection[0] = fDeltaToTarget[0] * rocket.fDirection[1] * rocket.fDirection[1] > 0.0 ? 1.0 : -1.0;
+					rocket.fCurveDirection[1] = fDeltaToTarget[1] * rocket.fDirection[0] * rocket.fDirection[0] > 0.0 ? 1.0 : -1.0;
+				}
 
-			// Smoothly change to direction to target using turnrate
-			rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate;
-			rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * rocket.fTurnrate;
-			rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
+				// We modify player position & recalculate direction to target, we let turnrate do the heavy lifting
+				fPlayerPosition[0] += rocket.fCurveDirection[0] * (1.0 + FloatAbs(fDeltaToTarget[0])) * rocket.fCurveFactor * fDistanceFactor;
+				fPlayerPosition[1] += rocket.fCurveDirection[1] * (1.0 + FloatAbs(fDeltaToTarget[1])) * rocket.fCurveFactor * fDistanceFactor;
 
-			// In orbit increase delay timer
-			if (rocket.InOrbit())
+				MakeVectorFromPoints(fRocketPosition, fPlayerPosition, fDirectionToTarget);
+				NormalizeVector(fDirectionToTarget, fDirectionToTarget);
+			}
+			// Reset curve direction
+			else
+			{
+				rocket.fCurveDirection[0] = 0.0;
+				rocket.fCurveDirection[1] = 0.0;
+			}
+
+			// Turnrate has already been clamped between 0.0 & 1.0
+			// Turning outside of orbit range
+			if (rocket.RangeToTarget() > ORBIT_RANGE)
+			{
+				// Smoothly change to direction to target using turnrate
+				rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate;
+				rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * rocket.fTurnrate;
+				rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
+			}
+			// We want to turn less whilst in orbit to make it easier
+			else
+			{
+				rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
+				rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
+				rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
+
+				// In orbit increase delay timer
 				rocket.fTimeInOrbit += GetTickInterval();
+			}
 
-			// Wave stuff, we do not wave whilst in orbit
-			if (currentConfig.iWavetype && rocket.iDeflectionCount && !rocket.InOrbit())
+			// Wave stuff, we do not wave whilst within certain range
+			if (currentConfig.iWavetype && rocket.iDeflectionCount && rocket.RangeToTarget() < WAVE_RANGE)
 			{
 				float fDistanceToPlayer = GetVectorDistance(fPlayerPosition, fRocketPosition);
 				
@@ -358,7 +399,7 @@ public void OnGameFrame()
 
 		CopyVec3(fRocketVelocity, rocket.fDirection);
 		ScaleVector(fRocketVelocity, rocket.fSpeed);
-
+	
 		// Rocket is being delayed
 		if (rocket.fTimeInOrbit > currentConfig.fDelayTime)
 		{
@@ -371,11 +412,11 @@ public void OnGameFrame()
 				rocket.bBeingDelayed = true;
 			}
 
-			ScaleVector(fRocketVelocity, (rocket.fTimeInOrbit - currentConfig.fDelayTime) + 1);
+			ScaleVector(fRocketVelocity, (rocket.fTimeInOrbit - currentConfig.fDelayTime) + 1.0);
 		}
 
-		// This to makes downspikes work, we dampen bounces when rocket is in orbitting range (otherwise the rocket might bounce back and forth over the player)
-		if (fTimeSinceLastBounce > currentConfig.fBounceTime || (!currentConfig.bDownspikes && !rocket.InOrbit()))
+		// This to makes downspikes work, we dampen bounces when rocket is within waving range (otherwise the rocket might bounce back and forth over the player)
+		if (fTimeSinceLastBounce > currentConfig.fBounceTime || (!currentConfig.bDownspikes && rocket.RangeToTarget() < WAVE_RANGE))
 		{
 			SetEntPropVector(rocket.iEntity, Prop_Data, "m_vecAbsVelocity", fRocketVelocity);
 			SetEntPropVector(rocket.iEntity, Prop_Send, "m_angRotation", fRocketAngles);
@@ -470,7 +511,7 @@ public Action OnTouch(int iEntity, int iClient)
 	TeleportEntity(rocket.iEntity, NULL_VECTOR, fNewAngles, fBounceVec);
 
 	// We force non-elastic bounces when in orbit, as otherwise rocket will bounce around the player constantly
-	if (!currentConfig.bDownspikes && !rocket.InOrbit())
+	if (!currentConfig.bDownspikes && rocket.RangeToTarget() < WAVE_RANGE)
 	{
 		// The reason why crawling downspikes work is because the direction was never updated
 		NormalizeVector(fBounceVec, fBounceVec);
@@ -504,11 +545,12 @@ void CreateRocket(int iSpawnerEntity, int iTeam)
 	rocket.iRef = EntIndexToEntRef(rocket.iEntity);
 	rocket.iTeam = g_bFFAenabled ? 1 : iTeam;
 
-	rocket.fSpeed = EvaluateFormula(currentConfig.strSpeedFormula, rocket.iDeflectionCount);
+	rocket.fSpeed = EvaluateFormula(currentConfig.strSpeedFormula, rocket.iDeflectionCount, rocket.fSpeed);
 	rocket.fSpeed = Clamp(rocket.fSpeed, currentConfig.fSpeedMin, currentConfig.fSpeedMax);
-	rocket.fTurnrate = EvaluateFormula(currentConfig.strTurnrateFormula, rocket.iDeflectionCount);
+	rocket.fTurnrate = EvaluateFormula(currentConfig.strTurnrateFormula, rocket.iDeflectionCount, rocket.fSpeed);
 	rocket.fTurnrate = Clamp(rocket.fTurnrate, currentConfig.fTurnrateMin, currentConfig.fTurnrateMax);
-	rocket.fDamage = EvaluateFormula(currentConfig.strDamageFormula, rocket.iDeflectionCount) / 3; // Account for critical rocket damage being 3x
+	rocket.fTurnrate = Clamp(rocket.fTurnrate, 0.0, 1.0);
+	rocket.fDamage = EvaluateFormula(currentConfig.strDamageFormula, rocket.iDeflectionCount, rocket.fSpeed) / 3; // Account for critical rocket damage being 3x
 
 	static float fPosition[3]; GetEntPropVector(iSpawnerEntity, Prop_Send, "m_vecOrigin", fPosition);
 	static float fAngles[3]; GetEntPropVector(iSpawnerEntity, Prop_Send, "m_angRotation", fAngles);
@@ -572,13 +614,17 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 	rocket.fWaveDistance = 0.0;
 	rocket.fTimeInOrbit = 0.0;
 
-	rocket.fSpeed = EvaluateFormula(currentConfig.strSpeedFormula, rocket.iDeflectionCount);
+	rocket.fSpeed = EvaluateFormula(currentConfig.strSpeedFormula, rocket.iDeflectionCount, rocket.fSpeed);
 	rocket.fSpeed = Clamp(rocket.fSpeed, currentConfig.fSpeedMin, currentConfig.fSpeedMax);
 
-	rocket.fTurnrate = EvaluateFormula(currentConfig.strTurnrateFormula, rocket.iDeflectionCount);
+	rocket.fTurnrate = EvaluateFormula(currentConfig.strTurnrateFormula, rocket.iDeflectionCount, rocket.fSpeed);
 	rocket.fTurnrate = Clamp(rocket.fTurnrate, currentConfig.fTurnrateMin, currentConfig.fTurnrateMax);
+	rocket.fTurnrate = Clamp(rocket.fTurnrate, 0.0, 1.0);
 
-	rocket.fDamage = EvaluateFormula(currentConfig.strDamageFormula, rocket.iDeflectionCount) / 3;
+	rocket.fCurveFactor = EvaluateFormula(currentConfig.strCurveFormula, rocket.iDeflectionCount, rocket.fSpeed);
+	rocket.fCurveFactor = Clamp(rocket.fCurveFactor, currentConfig.fCurveMin, currentConfig.fCurveMax);
+
+	rocket.fDamage = EvaluateFormula(currentConfig.strDamageFormula, rocket.iDeflectionCount, rocket.fSpeed) / 3;
 
 	// m_iTeamNum is 6 bits, | 32 sets the highest bit (which apparently makes it so that you/teammates can hit your own projectiles)
 	SetEntProp(rocket.iEntity, Prop_Send, "m_iTeamNum", currentConfig.bAirblastTeamRockets ? rocket.iTeam | 32 : rocket.iTeam);
@@ -837,6 +883,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		int iRandomOpponent = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
 		g_iOldTeam[iRandomOpponent] = AnalogueTeam(g_iLastDeadTeam);
 		
+		// This is how to switch a persons team who is alive
 		SetEntProp(iRandomOpponent, Prop_Send, "m_lifeState", 2); // LIFE_DEAD = 2
 		ChangeClientTeam(iRandomOpponent, g_iLastDeadTeam);
 		SetEntProp(iRandomOpponent, Prop_Send, "m_lifeState", 0); // LIFE_ALIVE = 0
@@ -951,13 +998,26 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	currentConfig.strSpeedFormula = ShuntingYard(strBuffer);
 	cfg.GetFloat("rocket.minimum speed", currentConfig.fSpeedMin);
 	cfg.GetFloat("rocket.maximum speed", currentConfig.fSpeedMax);
-	
+
+	// Thresholds
+	cfg.GetInt("rocket.threshold a", currentConfig.iThresholdA);
+	cfg.GetInt("rocket.threshold b", currentConfig.iThresholdB);
+
 	// Rocket turnrate
 	cfg.Get("rocket.turnrate formula", strBuffer, sizeof(strBuffer));
 	currentConfig.strTurnrateFormula = ShuntingYard(strBuffer);
 	cfg.GetFloat("rocket.minimum turnrate", currentConfig.fTurnrateMin);
 	cfg.GetFloat("rocket.maximum turnrate", currentConfig.fTurnrateMax);
-	
+
+	// Orbitting
+	cfg.GetFloat("rocket.orbit factor", currentConfig.fOrbitFactor);
+
+	// Curving
+	cfg.Get("rocket.curving formula", strBuffer, sizeof(strBuffer));
+	currentConfig.strCurveFormula = ShuntingYard(strBuffer);
+	cfg.GetFloat("rocket.minimum curving", currentConfig.fCurveMin);
+	cfg.GetFloat("rocket.maximum curving", currentConfig.fCurveMax);
+
 	// Rocket spawning
 	cfg.GetInt("gameplay.max rockets", currentConfig.iMaxRockets);
 	cfg.GetFloat("gameplay.rocket spawn interval", currentConfig.fSpawnInterval);
@@ -1060,7 +1120,7 @@ public Action CmdLoadConfig(int iClient, int iArgs)
 // ---- Formula stuff -------------------------------
 
 // Evaluates a formula given a deflection count (Formula has to be in RPN (reverse polish) notation!)
-float EvaluateFormula(char[] strFormula, int iDeflectionCount)
+float EvaluateFormula(char[] strFormula, int iDeflectionCount, float fSpeed)
 {
 	// 64 max strings, each with max length of 8 chars
 	char strExploded[128][16];
@@ -1081,7 +1141,35 @@ float EvaluateFormula(char[] strFormula, int iDeflectionCount)
 		}
 		else if (StrContains(strExploded[n], "x", false) != -1) // x = deflection count
 		{
-			EvalBuffer[i++] = float(iDeflectionCount);
+			if (StrContains(strExploded[n], "-", false) != -1) // We do this check for if there is "*-x", "2-x" is not handled by this
+				EvalBuffer[i++] = -float(iDeflectionCount);
+			else
+				EvalBuffer[i++] = float(iDeflectionCount);
+		}
+		else if (StrContains(strExploded[n], "s", false) != -1) // s = rocket speed
+		{
+			if (StrContains(strExploded[n], "-", false) != -1)
+				EvalBuffer[i++] = -fSpeed;
+			else
+				EvalBuffer[i++] = fSpeed;
+		}
+		else if (StrContains(strExploded[n], "a", false) != -1) // a = deflection threshold a
+		{
+			if (StrContains(strExploded[n], "-", false) != -1)
+				EvalBuffer[i++] = currentConfig.iThresholdA >= iDeflectionCount ? 0.0 : -1.0;
+			else
+				EvalBuffer[i++] = currentConfig.iThresholdA >= iDeflectionCount ? 0.0 : 1.0;
+		}
+		else if (StrContains(strExploded[n], "b", false) != -1) // b = deflection threshold b
+		{
+			if (StrContains(strExploded[n], "-", false) != -1)
+				EvalBuffer[i++] = currentConfig.iThresholdB >= iDeflectionCount ? 0.0 : -1.0;
+			else
+				EvalBuffer[i++] = currentConfig.iThresholdB >= iDeflectionCount ? 0.0 : 1.0;
+		}
+		else if (StrContains(strExploded[n], "o", false) != -1) // o = 0.0, we can't use 0.0 as StringToFloat returns 0.0 on error, so not recognized
+		{
+			EvalBuffer[i++] = 0.0;
 		}
 		else // Is operator, do operation
 		{
@@ -1789,6 +1877,26 @@ public any Native_SetRocketByIndex(Handle hPlugin, int iNumParams)
 	return SP_ERROR_NONE;
 }
 
+public any Native_IsRocketTarget(Handle hPlugin, int iNumParams)
+{
+	int iClient = GetNativeCell(1);
+
+	if (!IsValidClient(iClient))
+		return false;
+	
+	Rocket rocket;
+
+	for (int n = 0; n < g_rockets.Length; n++)
+	{
+		g_rockets.GetArray(n, rocket);
+		
+		if (rocket.iTarget == iClient)
+			return true;
+	}
+
+	return false;
+}
+
 public any Native_GetCurrentConfig(Handle hPlugin, int iNumParams)
 {
 	return SetNativeArray(1, currentConfig, sizeof(TFDBConfig));
@@ -1804,7 +1912,21 @@ public any Native_IsFFAenabled(Handle hPlugin, int iNumParams)
 	return g_bFFAenabled;
 }
 
+public any Native_ToggleFFA(Handle hPlugin, int iNumParams)
+{
+	ToggleFFA();
+
+	return 0;
+}
+
 public any Native_IsNERenabled(Handle hPlugin, int iNumParams)
 {
 	return g_bNERenabled;
+}
+
+public any Native_ToggleNER(Handle hPlugin, int iNumParams)
+{
+	ToggleNER();
+
+	return 0;
 }
