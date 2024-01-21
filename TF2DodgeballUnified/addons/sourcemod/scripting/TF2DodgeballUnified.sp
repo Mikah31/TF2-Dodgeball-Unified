@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.3.0"
+#define PLUGIN_VERSION     "1.3.1"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -101,6 +101,7 @@ public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] strError, int iE
 	RegPluginLibrary("tfdb");
 
 	CreateNative("TFDB_IsDodgeballEnabled", Native_IsDodgeballEnabled);
+	CreateNative("TFDB_CreateRocket", Native_CreateRocket);
 	CreateNative("TFDB_IsValidRocket", Native_IsValidRocket);
 	CreateNative("TFDB_FindRocketByEntity", Native_FindRocketByEntity);
 	CreateNative("TFDB_GetRocketByIndex", Native_GetRocketByIndex);
@@ -326,8 +327,8 @@ public void OnGameFrame()
 			}
 
 			// Turnrate has already been clamped between 0.0 & 1.0
-			// Turning outside of orbit range
-			if (rocket.RangeToTarget() > ORBIT_RANGE)
+			// Turning outside of orbit range, or if the rocket is being delayed
+			if (rocket.RangeToTarget() > ORBIT_RANGE || rocket.bBeingDelayed)
 			{
 				// Smoothly change to direction to target using turnrate
 				rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate;
@@ -340,10 +341,11 @@ public void OnGameFrame()
 				rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
 				rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
 				rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
-
-				// In orbit increase delay timer
-				rocket.fTimeInOrbit += GetTickInterval();
 			}
+
+			// In orbit increase delay timer
+			if (rocket.RangeToTarget() < ORBIT_RANGE)
+				rocket.fTimeInOrbit += GetTickInterval();
 
 			// Wave stuff, we do not wave whilst within certain range
 			if (currentConfig.iWavetype && rocket.iDeflectionCount && rocket.RangeToTarget() < WAVE_RANGE)
@@ -1156,16 +1158,16 @@ float EvaluateFormula(char[] strFormula, int iDeflectionCount, float fSpeed)
 		else if (StrContains(strExploded[n], "a", false) != -1) // a = deflection threshold a
 		{
 			if (StrContains(strExploded[n], "-", false) != -1)
-				EvalBuffer[i++] = currentConfig.iThresholdA >= iDeflectionCount ? 0.0 : -1.0;
+				EvalBuffer[i++] = iDeflectionCount >= currentConfig.iThresholdA ? -1.0 : 0.0;
 			else
-				EvalBuffer[i++] = currentConfig.iThresholdA >= iDeflectionCount ? 0.0 : 1.0;
+				EvalBuffer[i++] = iDeflectionCount >= currentConfig.iThresholdA ? 1.0 : 0.0;
 		}
 		else if (StrContains(strExploded[n], "b", false) != -1) // b = deflection threshold b
 		{
 			if (StrContains(strExploded[n], "-", false) != -1)
-				EvalBuffer[i++] = currentConfig.iThresholdB >= iDeflectionCount ? 0.0 : -1.0;
+				EvalBuffer[i++] = iDeflectionCount >= currentConfig.iThresholdB ? -1.0 : 0.0;
 			else
-				EvalBuffer[i++] = currentConfig.iThresholdB >= iDeflectionCount ? 0.0 : 1.0;
+				EvalBuffer[i++] = iDeflectionCount >= currentConfig.iThresholdB ? 1.0 : 0.0;
 		}
 		else if (StrContains(strExploded[n], "o", false) != -1) // o = 0.0, we can't use 0.0 as StringToFloat returns 0.0 on error, so not recognized
 		{
@@ -1386,7 +1388,7 @@ public Action CmdVoteFFA(int iClient, int iArgs)
 		return Plugin_Handled;
 	}
 
-	if (g_fFFAvoteTime + currentConfig.fFFAvotingTimeout > GetGameTime())
+	if (!g_fFFAvoteTime && g_fFFAvoteTime + currentConfig.fFFAvotingTimeout > GetGameTime())
 	{
 		CReplyToCommand(iClient, "%t", "Dodgeball_FFAVote_Cooldown", g_fFFAvoteTime + currentConfig.fFFAvotingTimeout - GetGameTime());
 
@@ -1490,7 +1492,7 @@ public Action CmdVoteNER(int iClient, int iArgs)
 		return Plugin_Handled;
 	}
 
-	if (g_fNERvoteTime + currentConfig.fNERvotingTimeout > GetGameTime())
+	if (!g_fNERvoteTime && g_fNERvoteTime + currentConfig.fNERvotingTimeout > GetGameTime())
 	{
 		CReplyToCommand(iClient, "%t", "Dodgeball_NERVote_Cooldown", g_fNERvoteTime + currentConfig.fNERvotingTimeout - GetGameTime());
 
@@ -1834,6 +1836,16 @@ public any Native_IsDodgeballEnabled(Handle hPlugin, int iNumParams)
 {
 	return g_bEnabled;
 }
+
+public any Native_CreateRocket(Handle hPlugin, int iNumParams)
+{
+	int iTeam = GetNativeCell(1);
+	
+	CreateRocket(iTeam == view_as<int>(TFTeam_Blue) ? g_iBlueSpawnerEntity : g_iRedSpawnerEntity, iTeam);
+
+	return 0;
+}
+
 
 public any Native_IsValidRocket(Handle hPlugin, int iNumParams)
 {
