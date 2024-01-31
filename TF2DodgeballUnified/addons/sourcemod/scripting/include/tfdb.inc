@@ -16,7 +16,7 @@ enum struct Rocket
 
 	int iOwner;
 	int iTarget;
-	int iTeam;
+	int iTeam;	// You also have to set the entprop if you want to change the rocket's team!
 
 	float fDamage;
 	float fSpeed;
@@ -43,6 +43,8 @@ enum struct Rocket
 
 	// Starting distance to target, used for calculating phase in wave
 	float fWaveDistance;
+	float fWaveAmplitude;
+	float fWaveOscillations;
 
 	// Used for checking if the rocket is within a certain range (orbitting, waving, etc..)
 	// We shouldn't wave in a certain range to target for example
@@ -75,55 +77,72 @@ enum struct Rocket
 
 enum struct TFDBConfig
 {
+	// Formula's
 	char strDamageFormula[256]; // gives us an effective max equation length of worst case max ~128 characters due to added spacers
 	char strSpeedFormula[256];
 	char strTurnrateFormula[256];
 	char strCurveFormula[256];
+	// Waving
+	char strWaveAmplitudeFormula[256];
+	char strWaveOscillationsFormula[256];
+	int iWavetype;
 
+	// Formula clamps
 	float fSpeedMin;
 	float fSpeedMax;
 	float fTurnrateMin;
 	float fTurnrateMax;
 	float fCurveMin;
 	float fCurveMax;
+	float fWaveOscillationsMin;
+	float fWaveOscillationsMax;
+	float fWaveAmplitudeMin;
+	float fWaveAmplitudeMax;
 
+	// Special variables a & b, read config
 	int iThresholdA;
 	int iThresholdB;
 
+	// Dragging
 	float fDragTimeMax;
 	float fTurningDelay;
 
+	// Rocket spawning
 	int iMaxRockets;
 	float fSpawnInterval;
 	
+	// Bouncing
 	bool bDownspikes;
 	float fBounceTime;
 	int iMaxBounces;
 
-	int iWavetype;
-	float fWaveAmplitude;
-	float fWaveOscillations;
-
+	// Stealing
 	int iMaxSteals;
 	bool bStolenRocketsDoDamage;
 	
+	// Orbitting
 	float fDelayTime; // Delay time before rocket starts speeding up
-
 	float fOrbitFactor;
 
+	// Airblasting players
 	bool bPushPrevention;
 	float fPushScale;
+
+	// Airblasting delay
 	float fAirblastDelay;
 
+	// Bools
 	bool bSpeedometer;
 	bool bAirblastTeamRockets;
 	bool bDisablePlayerCollisions;
-	
 	bool bFFAallowed;
-	float fFFAvotingTimeout;
 	bool bNeverEndingRoundsAllowed;
-	float fNERvotingTimeout;
+	bool bSoloAllowed;
 
+	// Voting timeouts
+	float fFFAvotingTimeout;
+	float fNERvotingTimeout;
+	
 	// Prints the formula in RPN notation, use https://k144.github.io/tools/rpn/ to convert back, DEBUG
 	void PrintFormulae()
 	{
@@ -165,6 +184,15 @@ forward void TFDB_OnRocketCreated(int iIndex, Rocket rocket);
  * @param rocket    Rocket structure.
  */
 forward void TFDB_OnRocketDeflect(int iIndex, Rocket rocket);
+
+/**
+ * Called before a rocket has been deflected.
+ * 
+ * @param iIndex    Rocket index in ArrayList.
+ * @param rocket    Rocket structure.
+ * @return 			Plugin_Stop to stop the deflect.
+ */
+forward Action TFDB_OnRocketDeflectPre(int iIndex, Rocket rocket)
 
 /**
  * Called when rocket has been stolen.
@@ -248,6 +276,14 @@ forward void TFDB_OnRocketGameFrame(int iIndex, Rocket rocket);
  * @return		True if dodgeball map, false otherwise.
  */
 native bool TFDB_IsDodgeballEnabled();
+
+/**
+ * Creates a rocket targetting iTeam.
+ * 
+ * @param iTeam		Target team.
+ * @noreturn
+ */
+native void TFDB_CreateRocket(int iTeam);
 
 /**
  * Checks if the rocket is valid.
@@ -354,6 +390,7 @@ public SharedPlugin __pl_TFDB =
 public void __pl_TFDB_SetNTVOptional()
 {
 	MarkNativeAsOptional("TFDB_IsDodgeballEnabled");
+	MarkNativeAsOptional("TFDB_CreateRocket");
 	MarkNativeAsOptional("TFDB_IsValidRocket");
 	MarkNativeAsOptional("TFDB_FindRocketByEntity");
 	MarkNativeAsOptional("TFDB_GetRocketByIndex");

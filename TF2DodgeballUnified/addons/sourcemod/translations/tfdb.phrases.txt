@@ -1,11 +1,11 @@
 "Phrases"
 {
-	"Command_DodgeballDisabled"
+	"Command_Dodgeball_Disabled"
 	{
 		"en"		"[{olive}TFDB{default]}] Dodgeball is not enabled."
 	}
 
-	"Command_DisabledByConfig"
+	"Command_Disabled_By_Config"
 	{
 		"en"		"[{olive}TFDB{default}] This command is disabled in rocket config."
 	}
@@ -88,14 +88,19 @@
 		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} vote {red}failed{default}."
 	}
 	
-	"Dodgeball_FFAVote_Enabled"
+	"Dodgeball_FFA_Enabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} is now {community}enabled{default}."
 	}
 		
-	"Dodgeball_FFAVote_Disabled"
+	"Dodgeball_FFA_Disabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} is now {red}disabled{default}."
+	}
+
+	"Dodgeball_FFA_Disabled_By_New_Config"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} has been {red}disabled{default} by new config."
 	}
 
 	"Dodgeball_NERVote_Cooldown"
@@ -109,18 +114,58 @@
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} vote {red}failed{default}."
 	}
 	
-	"Dodgeball_NERVote_Enabled"
+	"Dodgeball_NER_Enabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {community}enabled{default}."
 	}
 		
-	"Dodgeball_NERVote_Disabled"
+	"Dodgeball_NER_Disabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {red}disabled{default}."
+	}
+
+	"Dodgeball_NER_Disabled_By_New_Config"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} has been {red}disabled{default} by new config."
 	}
 
 	"Dodgeball_NER_Not_Enough_Players_Disabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {red}disabled{default} due to not enough players."
+	}
+
+	"Dodgeball_Solo_Toggled_On"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo{default} is now {community}enabled{default}."
+	}
+
+	"Dodgeball_Solo_Toggled_Off"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo{default} is now {red}disabled{default}."
+	}
+
+	"Dodgeball_Solo_NER_Notify_Not_Respawned"
+	{
+		"en"		"[{olive}TFDB{default}] You will be respawned at the end of the round, as you have {darkmagenta}solo{default} enabled."
+	}
+
+	"Dodgeball_Solo_Not_Possible_Last_Alive"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo{default} can {red}not{default} be enabled, as you are the last player alive."
+	}
+
+	"Dodgeball_Solo_Not_Possible_No_Teammates"
+	{
+		"en"		"[{olive}TFDB{default}] Your {darkmagenta}solo{default} has been {red}disabled{default} as you have no alive teammates."
+	}
+
+	"Dodgeball_Solo_Not_Possible_NER_Would_End"
+	{
+		"en"		"[{olive}TFDB{default}] Your {darkmagenta}solo{default} has been {red}disabled{default} as otherwise NER would have ended."
+	}
+
+	"Dodgeball_Solo_Disabled_By_New_Config"
+	{
+		"en"		"[{olive}TFDB{default}] Your {darkmagenta}solo{default} has been {red}disabled{default} by new config."
 	}
 }
