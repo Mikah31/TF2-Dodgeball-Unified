@@ -43,6 +43,7 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`. This plugin is NOT co
 - **sm_voteffa** : Starts a vote for toggling FFA.
 - **sm_ner** : Forces toggling of NER mode.
 - **sm_votener** : Starts a vote for toggling NER mode.
+- **sm_solo** : Spawn player at the end of the round.
 
 # Credits
 1. This plugin is mainly based off of a modified version of YADP modified by x07x08, Silorak & Tolfx, many subplugins from there were also integrated into this plugin. | [Link](https://github.com/x07x08/TF2-Dodgeball-Modified/)
