@@ -27,6 +27,7 @@ enum struct Rocket
 	
 	float fTimeLastDeflect;
 	float fTimeLastBounce;
+	float fTimeLastTurn;
 	float fTimeInOrbit;
 
 	bool bHasTarget;
@@ -37,10 +38,6 @@ enum struct Rocket
 
 	float fDirection[3];
 	
-	// Curving x & y directions
-	float fCurveDirection[2];
-	float fCurveFactor;
-
 	// Starting distance to target, used for calculating phase in wave
 	float fWaveDistance;
 	float fWaveAmplitude;
@@ -66,10 +63,10 @@ enum struct Rocket
 			EmitSoundToClient(this.iTarget, strPathSound, _, _, _, _, 0.5); // SOUND_ALERT
 	}
 
+	// The speed cannot exceed the maximum velocity set in the config, we reflect this in speedometer (although this method is not 100% accurate)
 	float SpeedMpH()
 	{
-		// 0.042614 is the conversion factor to MpH in other plugins
-		return this.fSpeed * 0.042614;
+		return this.fSpeed * 0.042614; // 0.042614 is the conversion factor to MpH in other plugins
 	}
 }
 
@@ -81,19 +78,12 @@ enum struct TFDBConfig
 	char strDamageFormula[256]; // gives us an effective max equation length of worst case max ~128 characters due to added spacers
 	char strSpeedFormula[256];
 	char strTurnrateFormula[256];
-	char strCurveFormula[256];
 	// Waving
 	char strWaveAmplitudeFormula[256];
 	char strWaveOscillationsFormula[256];
 	int iWavetype;
 
 	// Formula clamps
-	float fSpeedMin;
-	float fSpeedMax;
-	float fTurnrateMin;
-	float fTurnrateMax;
-	float fCurveMin;
-	float fCurveMax;
 	float fWaveOscillationsMin;
 	float fWaveOscillationsMax;
 	float fWaveAmplitudeMin;
@@ -102,6 +92,15 @@ enum struct TFDBConfig
 	// Special variables a & b, read config
 	int iThresholdA;
 	int iThresholdB;
+
+	// Turnrate limit
+	float fTurnrateLimit;
+
+	// Spiking
+	int iSpikingDeflects
+	float fSpikingStrength;
+	float fSpikingTime;
+	float fSpikingMaxTime;
 
 	// Dragging
 	float fDragTimeMax;
@@ -162,7 +161,7 @@ enum struct TFDBConfig
 // Rocket behaviour (can) change within these ranges to target
 #define ORBIT_RANGE 	250.0	// We are in orbit inside of this range
 #define WAVE_RANGE		300.0	// We wave outside of this range
-#define CURVE_RANGE		500.0	// We curve outside of this range
+#define SPIKING_RANGE	550.0	// Spiking outside of this range
 
 // ---- Forwards ---------------------------------------
 
@@ -184,15 +183,6 @@ forward void TFDB_OnRocketCreated(int iIndex, Rocket rocket);
  * @param rocket    Rocket structure.
  */
 forward void TFDB_OnRocketDeflect(int iIndex, Rocket rocket);
-
-/**
- * Called before a rocket has been deflected.
- * 
- * @param iIndex    Rocket index in ArrayList.
- * @param rocket    Rocket structure.
- * @return 			Plugin_Stop to stop the deflect.
- */
-forward Action TFDB_OnRocketDeflectPre(int iIndex, Rocket rocket)
 
 /**
  * Called when rocket has been stolen.

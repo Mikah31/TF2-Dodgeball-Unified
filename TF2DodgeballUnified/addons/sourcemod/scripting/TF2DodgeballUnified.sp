@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.4.0"
+#define PLUGIN_VERSION     "1.5.0"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -184,8 +184,12 @@ void EnableDodgeball()
 	// Rocket speedometer
 	g_hMainHudSync = CreateHudSynchronizer();
 
-	// Execute dodgeball server config, infinite airblast & arena mode
-	ServerCommand("exec \"sourcemod/dodgeball_enable.cfg\"");
+	// Remove airblast cost & arena queue
+	SetConVarFloat(FindConVar("tf_flamethrower_burstammo"), 0.0); // default 25.0
+	SetConVarBool(FindConVar("tf_arena_use_queue"), false); // default true
+
+	// Unlock max velocity
+	SetConVarFloat(FindConVar("sv_maxvelocity"), 9999.0);
 
 	// Parsing rocket configs
 	ParseConfig();
@@ -212,7 +216,10 @@ void DisableDodgeball()
 	UnhookEvent("post_inventory_application", OnPlayerInventory, EventHookMode_Post);
 	UnhookEvent("object_deflected", OnObjectDeflected);
 
-	ServerCommand("exec \"sourcemod/dodgeball_disable.cfg\"");
+	// Resetting to default
+	SetConVarFloat(FindConVar("tf_flamethrower_burstammo"), 25.0);
+	SetConVarBool(FindConVar("tf_arena_use_queue"), true);
+	SetConVarFloat(FindConVar("sv_maxvelocity"), 3500.0);
 
 	// Cleaning up timers
 	if (g_hManageRocketsTimer != null)
@@ -244,6 +251,7 @@ public void OnGameFrame()
 	}
 	
 	Rocket rocket;
+	float currentTime = GetGameTime();
 
 	// Go over each rocket in ArrayList
 	for (int n = 0; n < g_rockets.Length; n++)
@@ -256,19 +264,21 @@ public void OnGameFrame()
 		// If we had set fTimeLastDeflect in OnObjectDeflected it would be out of sync with OnGameFrame, resulting in deflection delays
 		if (rocket.bRecentlyReflected)
 		{
-			rocket.fTimeLastDeflect = GetGameTime(); 
+			rocket.fTimeLastDeflect = currentTime; 
 			rocket.bRecentlyReflected = false;
 		}
 
 		// For creating crawling downspikes
 		if (rocket.bRecentlyBounced)
 		{
-			rocket.fTimeLastBounce = GetGameTime();
+			rocket.fTimeLastBounce = currentTime;
 			rocket.bRecentlyBounced = false;
 		}
 		
-		float fTimeSinceLastDeflect = GetGameTime() - rocket.fTimeLastDeflect;
-		float fTimeSinceLastBounce = GetGameTime() - rocket.fTimeLastBounce;
+		float fTimeSinceLastDeflect = currentTime - rocket.fTimeLastDeflect;
+		float fTimeSinceLastBounce = currentTime - rocket.fTimeLastBounce;
+		// The extra factor is to vary the spiking length
+		float fTimeSinceLastTurn = (currentTime - rocket.fTimeLastTurn) + (GetRandomFloat(-currentConfig.fSpikingTime*0.25, currentConfig.fSpikingTime*0.25));
 
 		static float fRocketPosition[3]; GetEntPropVector(rocket.iEntity, Prop_Data, "m_vecOrigin", fRocketPosition);
 
@@ -308,57 +318,33 @@ public void OnGameFrame()
 			MakeVectorFromPoints(fRocketPosition, fPlayerPosition, fDirectionToTarget);
 			NormalizeVector(fDirectionToTarget, fDirectionToTarget);
 
-			// Fake rocket curving without affecting velocity
-			// Previously this was a side-effect of limiting sv_maxvelocity
-			if (rocket.RangeToTarget() > CURVE_RANGE && rocket.fCurveFactor)
+			// Spiking check
+			if (!currentConfig.iSpikingDeflects
+				|| currentConfig.iSpikingDeflects > rocket.iDeflectionCount
+				|| rocket.RangeToTarget() < SPIKING_RANGE
+				|| fTimeSinceLastTurn > currentConfig.fSpikingTime
+				|| currentConfig.fSpikingMaxTime < fTimeSinceLastDeflect)
 			{
-				float fDistanceFactor = CURVE_RANGE / rocket.RangeToTarget();
-				static float fDeltaToTarget[3]; SubtractVectors(fDirectionToTarget, rocket.fDirection, fDeltaToTarget);
-				
-				if (!rocket.fCurveDirection[0])
+				if (rocket.RangeToTarget() > ORBIT_RANGE || rocket.bBeingDelayed)
 				{
-					// This is might not be very intuitive, but it works well enough-ish? Not a fan of it
-					// We curve away from target
-					rocket.fCurveDirection[0] = fDeltaToTarget[0] * rocket.fDirection[1] * rocket.fDirection[1] > 0.0 ? 1.0 : -1.0;
-					rocket.fCurveDirection[1] = fDeltaToTarget[1] * rocket.fDirection[0] * rocket.fDirection[0] > 0.0 ? 1.0 : -1.0;
+					// Turning factor = normal rocket turning, or spiking behaviour
+					float fTurningFactor = currentConfig.iSpikingDeflects && currentConfig.iSpikingDeflects <= rocket.iDeflectionCount &&currentConfig.fSpikingMaxTime >= fTimeSinceLastDeflect && rocket.RangeToTarget() > SPIKING_RANGE ? currentConfig.fSpikingStrength : rocket.fTurnrate;
 
-					// We do not curve if rocket was directed
-					if ((FloatAbs(fDeltaToTarget[0]) < 0.05 && FloatAbs(rocket.fDirection[1]) > 0.25) ||
-						(FloatAbs(fDeltaToTarget[1]) < 0.05 && FloatAbs(rocket.fDirection[0]) > 0.25))
-					{
-						rocket.fCurveFactor = 0.0;
-					}
+					// Smoothly change to direction to target using turnrate
+					rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * fTurningFactor;
+					rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * fTurningFactor;
+					rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * fTurningFactor;
+				}
+				// We want to turn less whilst in orbit to make it easier
+				else
+				{
+					rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
+					rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
+					rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
 				}
 
-				// We modify player position & recalculate direction to target, we let turnrate do the heavy lifting of actually faking the curve
-				fPlayerPosition[0] += rocket.fCurveDirection[0] * (1.0 + FloatAbs(fDeltaToTarget[0])) * rocket.fCurveFactor * fDistanceFactor;
-				fPlayerPosition[1] += rocket.fCurveDirection[1] * (1.0 + FloatAbs(fDeltaToTarget[1])) * rocket.fCurveFactor * fDistanceFactor;
-
-				MakeVectorFromPoints(fRocketPosition, fPlayerPosition, fDirectionToTarget);
-				NormalizeVector(fDirectionToTarget, fDirectionToTarget);
-			}
-			// Reset curve direction
-			else
-			{
-				rocket.fCurveDirection[0] = 0.0;
-				rocket.fCurveDirection[1] = 0.0;
-			}
-
-			// Turnrate has already been clamped between 0.0 & 1.0
-			// Turning outside of orbit range, or if the rocket is being delayed
-			if (rocket.RangeToTarget() > ORBIT_RANGE || rocket.bBeingDelayed)
-			{
-				// Smoothly change to direction to target using turnrate
-				rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate;
-				rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * rocket.fTurnrate;
-				rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
-			}
-			// We want to turn less whilst in orbit to make it easier
-			else
-			{
-				rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
-				rocket.fDirection[1] += (fDirectionToTarget[1] - rocket.fDirection[1]) * rocket.fTurnrate * currentConfig.fOrbitFactor;
-				rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
+				// We randomize spiking timing to vary length of spikes, these spikes were originally created by turning every x seconds (which was not synced with every game frame)
+				rocket.fTimeLastTurn = currentTime;
 			}
 
 			// In orbit increase delay timer
@@ -566,10 +552,10 @@ void CreateRocket(int iSpawnerEntity, int iTeam)
 	rocket.iTeam = g_bFFAenabled ? 1 : iTeam;
 
 	rocket.fSpeed = EvaluateFormula(currentConfig.strSpeedFormula, rocket.iDeflectionCount, rocket.fSpeed);
-	rocket.fSpeed = Clamp(rocket.fSpeed, currentConfig.fSpeedMin, currentConfig.fSpeedMax);
+
 	rocket.fTurnrate = EvaluateFormula(currentConfig.strTurnrateFormula, rocket.iDeflectionCount, rocket.fSpeed);
-	rocket.fTurnrate = Clamp(rocket.fTurnrate, currentConfig.fTurnrateMin, currentConfig.fTurnrateMax);
-	rocket.fTurnrate = Clamp(rocket.fTurnrate, 0.0, 1.0);
+	rocket.fTurnrate = Clamp(rocket.fTurnrate, 0.0, currentConfig.fTurnrateLimit);
+
 	rocket.fDamage = EvaluateFormula(currentConfig.strDamageFormula, rocket.iDeflectionCount, rocket.fSpeed) / 3; // Account for critical rocket damage being 3x
 
 	static float fPosition[3]; GetEntPropVector(iSpawnerEntity, Prop_Send, "m_vecOrigin", fPosition);
@@ -635,14 +621,9 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 	rocket.fTimeInOrbit = 0.0;
 
 	rocket.fSpeed = EvaluateFormula(currentConfig.strSpeedFormula, rocket.iDeflectionCount, rocket.fSpeed);
-	rocket.fSpeed = Clamp(rocket.fSpeed, currentConfig.fSpeedMin, currentConfig.fSpeedMax);
 
 	rocket.fTurnrate = EvaluateFormula(currentConfig.strTurnrateFormula, rocket.iDeflectionCount, rocket.fSpeed);
-	rocket.fTurnrate = Clamp(rocket.fTurnrate, currentConfig.fTurnrateMin, currentConfig.fTurnrateMax);
-	rocket.fTurnrate = Clamp(rocket.fTurnrate, 0.0, 1.0);
-
-	rocket.fCurveFactor = EvaluateFormula(currentConfig.strCurveFormula, rocket.iDeflectionCount, rocket.fSpeed);
-	rocket.fCurveFactor = Clamp(rocket.fCurveFactor, currentConfig.fCurveMin, currentConfig.fCurveMax);
+	rocket.fTurnrate = Clamp(rocket.fTurnrate, 0.0, currentConfig.fTurnrateLimit);
 
 	rocket.fWaveOscillations = EvaluateFormula(currentConfig.strWaveOscillationsFormula, rocket.iDeflectionCount, rocket.fSpeed);
 	rocket.fWaveOscillations = Clamp(rocket.fWaveOscillations, currentConfig.fWaveOscillationsMin, currentConfig.fWaveOscillationsMax);
@@ -1004,8 +985,9 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		{
 			int iWinner = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
 
-			int iRedTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Red));
-			int iBlueTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Blue));
+			// Correction, as the person who died last can not be respawned the same frame, so they're automatically 'solo'
+			int iRedTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Red)) - g_iLastDeadTeam == view_as<int>(TFTeam_Red) ? 1 : 0;
+			int iBlueTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Blue)) - g_iLastDeadTeam == view_as<int>(TFTeam_Blue) ? 1 : 0;
 
 			// Respawn every (dead) player
 			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
@@ -1081,21 +1063,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 			// Test if last person who died had solo enabled
 			if (g_bSoloEnabled[iClient])
 			{
-				// This is extra measure, as sometimes in testing rounds would still end
-				if (GetTeamAliveCount(g_iLastDeadTeam) != 1)
-				{
-					g_soloQueue.Push(iClient);
-					CPrintToChat(iClient, "%t", "Dodgeball_Solo_NER_Notify_Not_Respawned");
-
-					RequestFrame(RespawnPlayerCallback, 0);
-				}
-				else
-				{
-					g_bSoloEnabled[iWinner] = false;
-					CPrintToChat(iWinner, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
-
-					RequestFrame(RespawnPlayerCallback, iClient);
-				}	
+				RequestFrame(RespawnPlayerCallback, 0);
 			}
 			// Last person not solo
 			else
@@ -1187,8 +1155,6 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	// Rocket speed
 	cfg.Get("rocket.speed formula", strBuffer, sizeof(strBuffer));
 	currentConfig.strSpeedFormula = ShuntingYard(strBuffer);
-	cfg.GetFloat("rocket.minimum speed", currentConfig.fSpeedMin);
-	cfg.GetFloat("rocket.maximum speed", currentConfig.fSpeedMax);
 
 	// Thresholds
 	cfg.GetInt("rocket.threshold a", currentConfig.iThresholdA);
@@ -1197,17 +1163,16 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	// Rocket turnrate
 	cfg.Get("rocket.turnrate formula", strBuffer, sizeof(strBuffer));
 	currentConfig.strTurnrateFormula = ShuntingYard(strBuffer);
-	cfg.GetFloat("rocket.minimum turnrate", currentConfig.fTurnrateMin);
-	cfg.GetFloat("rocket.maximum turnrate", currentConfig.fTurnrateMax);
+	cfg.GetFloat("rocket.turnrate limit", currentConfig.fTurnrateLimit);
+
+	// Spiking
+	cfg.GetInt("rocket.spiking deflect", currentConfig.iSpikingDeflects);
+	cfg.GetFloat("rocket.spiking strength", currentConfig.fSpikingStrength);
+	cfg.GetFloat("rocket.spiking time", currentConfig.fSpikingTime);
+	cfg.GetFloat("rocket.spiking max time", currentConfig.fSpikingMaxTime);
 
 	// Orbitting
 	cfg.GetFloat("rocket.orbit factor", currentConfig.fOrbitFactor);
-
-	// Curving
-	cfg.Get("rocket.curving formula", strBuffer, sizeof(strBuffer));
-	currentConfig.strCurveFormula = ShuntingYard(strBuffer);
-	cfg.GetFloat("rocket.minimum curving", currentConfig.fCurveMin);
-	cfg.GetFloat("rocket.maximum curving", currentConfig.fCurveMax);
 
 	// Rocket spawning
 	cfg.GetInt("gameplay.max rockets", currentConfig.iMaxRockets);
@@ -1291,7 +1256,9 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 		}
 		g_soloQueue.Clear();
 	}
-	
+
+	DestroyAllRockets();
+
 	return true;
 }
 
@@ -1535,7 +1502,7 @@ char[] ShuntingYard(char[] strFormula)
 	char strParsedFormula[256];
 	char readBuf[2]; // We can't just StrCat a char, has to be char[] for StrCat, null terminator so size 2
 
-	// Reversing stack
+	// Reversing stack, shame we do not have deque
 	while (!outputStack.Empty)
 		operatorStack.Push(outputStack.Pop());
 

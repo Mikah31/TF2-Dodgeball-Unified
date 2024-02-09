@@ -146,7 +146,7 @@
 
 	"Dodgeball_Solo_NER_Notify_Not_Respawned"
 	{
-		"en"		"[{olive}TFDB{default}] You will be respawned at the end of the round, as you have {darkmagenta}solo{default} enabled."
+		"en"		"[{olive}TFDB{default}] You will be respawned at the end of the round, as you have {darkmagenta}solo{default} {community}enabled{default}."
 	}
 
 	"Dodgeball_Solo_Not_Possible_Last_Alive"
