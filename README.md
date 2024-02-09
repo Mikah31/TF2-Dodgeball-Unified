@@ -7,11 +7,10 @@ This is a TF2 Dodgeball plugin which unifies many subplugins and some server-spe
 - [TF2 Attributes](https://forums.alliedmods.net/showthread.php?t=210221) (Requires tf2attributes.smx)
 
 # Installation
-Copy the contents of `TF2DodgeballUnified` inside of `tf`. This plugin is NOT compatible with any subplugins made specifically for dodgeball plugins.
+Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 
 # Removed features (as of now, these could be added later)
 - Multiple types of rockets with spawning chances within 1 config.
-- ~The ability to make subplugins using natives.~ (Added since 1.2.0)
 - FFA / Hitting team rockets do not automatically disable once it is player vs bot, some bots break whenever FFA or team airblast rockets are enabled.
 - Taunt killing has not been disabled.
 - Nukes are completely removed.
@@ -25,17 +24,18 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`. This plugin is NOT co
 - The rocket will not wave whilst within orbitting range.
 - A push scale has been introduced to airblast players further away. (if airblasting players is enabled)
 - Airblast delay can now be changed in the config. (Taken from Swagville).
-- Never ending rounds. (Taken from Crimson Dynasty)
+- Never ending rounds. (Taken from Crimson Dynasty).
+- Added mid-air spiking.
 
 # Changed features
 - Wave has been remade using trigonometric functions, classic/vertical waves have been remade (it might not be exactly the same).
 - Dodgeball config handling & layout has been changed. (They are not compatible with previous plugins)
 - Translations has slightly been altered for consistency. (They are not compatible with previous plugins)
 - Many subplugins have been integrated into the main plugin. (Speedometer, Airblast prevention, Anti snipe, No blocking, Free for all, Never ending rounds)
-- Rockets are now struct enums, which should help creating subplugins. (for the future)
+- Rockets are now struct enums, which should help creating subplugins.
 - Delay time now only increases whilst in orbitting range.
 - Bounce time (when downspiking) has been added instead of scaling the bounce vector, this can be used to create bigger (or smaller) bounces.
-- **Reworked subplugin support, uses rocket & config structures** (Added since 1.2.0)
+- Reworked subplugin support, uses rocket & config structures
 
 # Commands
 - **sm_loadconfig** (*config.cfg*) : Loads specified config file, if no config file specified will load "general.cfg". (config must be within "addons/sourcemod/configs/dodgeball" directory)
