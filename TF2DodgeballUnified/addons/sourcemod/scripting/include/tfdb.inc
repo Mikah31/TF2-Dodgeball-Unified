@@ -64,9 +64,9 @@ enum struct Rocket
 	}
 
 	// The speed cannot exceed the maximum velocity set in the config, we reflect this in speedometer (although this method is not 100% accurate)
-	float SpeedMpH()
+	float SpeedMpH(float fMaxVelocity = 99999.9)
 	{
-		return this.fSpeed * 0.042614; // 0.042614 is the conversion factor to MpH in other plugins
+		return this.fSpeed > fMaxVelocity ? fMaxVelocity * 0.042614 : this.fSpeed * 0.042614; // 0.042614 is the conversion factor to MpH in other plugins
 	}
 }
 
@@ -95,6 +95,9 @@ enum struct TFDBConfig
 
 	// Turnrate limit
 	float fTurnrateLimit;
+
+	// Max velocity;
+	float fMaxVelocity;
 
 	// Spiking
 	int iSpikingDeflects
@@ -216,8 +219,9 @@ forward void TFDB_OnRocketNewTarget(int iIndex, Rocket rocket);
  * 
  * @param iIndex    Rocket index in ArrayList.
  * @param rocket    Rocket structure.
+ * @param iClient	Player hit.
  */
-forward void TFDB_OnRocketHitPlayer(int iIndex, Rocket rocket);
+forward void TFDB_OnRocketHitPlayer(int iIndex, Rocket rocket, int iClient);
 
 /**
  * Called when the rocket has bounced.

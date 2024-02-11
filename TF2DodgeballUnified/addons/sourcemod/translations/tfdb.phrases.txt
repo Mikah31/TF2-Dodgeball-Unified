@@ -12,14 +12,31 @@
 
 	"Dodgeball_Death_Message"
 	{
-		"#format"	"{1:N},{2:.0f},{3:i}"
-		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling {red}{2}{default} MpH at {red}{3}{default} deflections"
+		// 1:Name of person who died, 2:Admin speed, 3:Speed MpH, 4:Deflection count, 5:Curving factor
+		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f}"
+		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH at {red}{4}{default} deflections"
+	}
+	
+	"Dodgeball_Death_Message_MaxSpeed"
+	{
+		// 1:Name of person who died, 2:Admin speed, 3:(actual)Speed MpH, 4:Deflection count, 5:Curving factor, 6:(fake)Speed MpH
+		// Difference 3 & 6 -> 3 is limited by maxvelocity, 6 is not
+		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f},{6:.0f}"
+		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH, CurveFactor: {red}{5}{default} at {red}{4}{default} deflections"
 	}
 
 	"Dodgeball_Hud_Speedometer"
 	{
-		"#format"	"{1:.0f},{2:i},"
-		"en"		"Speed : {1} MpH | Deflections : {2}"
+		// 1:Admin speed, 2:Speed MpH, 3:Deflection count, 4:Curving factor
+		"#format"	"{1:.0f},{2:.0f},{3:i},{4:.2f}"
+		"en"		"Speed : {2} MpH | Deflections : {3}"
+	}
+
+	"Dodgeball_Hud_Speedometer_MaxSpeed"
+	{
+		// 1:Admin speed, 2:(actual)Speed MpH, 3:Deflection count, 4:Curving factor, 5:(fake)Speed MpH
+		"#format"	"{1:.0f},{2:.0f},{3:i},{4:.2f},{5:.0f}"
+		"en"		"Curving factor : {4} | Deflections : {3}"
 	}
 
 	"Dodgeball_Config_Loading_Default"
@@ -29,6 +46,7 @@
 
 	"Dodgeball_Config_Loading_New_Config"
 	{
+		// 1:Name of new config, only output to person loading new config
 		"#format"	"{1:s}"
 		"en"		"[{olive}TFDB{default}] Loading config \"{darkorange}{1}{default}\"."
 	}
@@ -45,18 +63,21 @@
 
 	"Dodgeball_Delay_Announce_All"
 	{
+		// 1:Name of person delaying
 		"#format"	"{1:N}"
 		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} is delaying, the rocket will now speed up."
 	}
 
 	"Dodgeball_Steal_Warning_Client"
 	{
+		// 1:Number of rockets stolen, 2:Max number of rockets that can be stolen
 		"#format"	"{1:i},{2:i}"
 		"en"		"[{olive}TFDB{default}] Do not steal rockets. [Warning {darkorange}{1}{default} / {darkorange}{2}{default}]"
 	}
 
 	"Dodgeball_Steal_Announce_All"
 	{
+		// 1:Name of person who stole rocket, 2:Person whose rocket was stolen
 		"#format"	"{1:N},{2:N}"
 		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} stole {steelblue}{2}{default}'s rocket!"
 	}
@@ -68,6 +89,7 @@
 
 	"Dodgeball_Steal_Announce_Slay_All"
 	{
+		// 1:Name of person slain for stealing
 		"#format"	"{1:N}"
 		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} was slain for stealing rockets."
 	}
@@ -79,6 +101,7 @@
 
 	"Dodgeball_FFAVote_Cooldown"
 	{
+		// 1:Seconds of cooldown left
 		"#format"	"{1:.0f}"
 		"en"		"[{olive}TFDB{default}] Voting for {darkmagenta}FFA{default} is in cooldown for {darkorange}{1}{default} seconds."
 	}
@@ -105,6 +128,7 @@
 
 	"Dodgeball_NERVote_Cooldown"
 	{
+		// 1:Seconds of cooldown left
 		"#format"	"{1:.0f}"
 		"en"		"[{olive}TFDB{default}] Voting for {darkmagenta}NER{default} is in cooldown for {darkorange}{1}{default} seconds."
 	}

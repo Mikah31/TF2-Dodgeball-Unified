@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.5.0"
+#define PLUGIN_VERSION     "1.5.1"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -133,7 +133,7 @@ void SetupForwards()
 	g_ForwardOnRocketSteal = CreateGlobalForward("TFDB_OnRocketSteal", ET_Ignore, Param_Cell, Param_Array, Param_Cell);
 	g_ForwardOnRocketDelay = CreateGlobalForward("TFDB_OnRocketDelay", ET_Ignore, Param_Cell, Param_Array);
 	g_ForwardOnRocketNewTarget = CreateGlobalForward("TFDB_OnRocketNewTarget", ET_Ignore, Param_Cell, Param_Array);
-	g_ForwardOnRocketHitPlayer = CreateGlobalForward("TFDB_OnRocketHitPlayer", ET_Ignore, Param_Cell, Param_Array);
+	g_ForwardOnRocketHitPlayer = CreateGlobalForward("TFDB_OnRocketHitPlayer", ET_Ignore, Param_Cell, Param_Array, Param_Cell);
 	g_ForwardOnRocketBounce = CreateGlobalForward("TFDB_OnRocketBounce", ET_Ignore, Param_Cell, Param_Array);
 	g_ForwardOnRocketsConfigExecuted = CreateGlobalForward("TFDB_OnRocketsConfigExecuted", ET_Ignore, Param_String, Param_Array);
 	g_ForwardOnRocketOtherWavetype = CreateGlobalForward("TFDB_OnRocketOtherWavetype", ET_Ignore, Param_Cell, Param_Array, Param_Cell, Param_Float, Param_Float);
@@ -187,9 +187,6 @@ void EnableDodgeball()
 	// Remove airblast cost & arena queue
 	SetConVarFloat(FindConVar("tf_flamethrower_burstammo"), 0.0); // default 25.0
 	SetConVarBool(FindConVar("tf_arena_use_queue"), false); // default true
-
-	// Unlock max velocity
-	SetConVarFloat(FindConVar("sv_maxvelocity"), 9999.0);
 
 	// Parsing rocket configs
 	ParseConfig();
@@ -458,7 +455,7 @@ public Action OnStartTouch(int iEntity, int iClient)
 			rocket.fDamage = 0.0;
 		}
 		
-		Forward_OnRocketHitPlayer(iIndex, rocket);
+		Forward_OnRocketHitPlayer(iIndex, rocket, iClient);
 
 		return Plugin_Continue;
 	}
@@ -587,7 +584,7 @@ void CreateRocket(int iSpawnerEntity, int iTeam)
 
 	SDKHook(rocket.iEntity, SDKHook_StartTouch, OnStartTouch);
 
-	Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.SpeedMpH(), rocket.iDeflectionCount);
+	Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
 
 	Forward_OnRocketCreated(g_rockets.Length, rocket);
 
@@ -673,8 +670,11 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 	rocket.bHasTarget = false;
 	rocket.bRecentlyReflected = true; // We set our rocket.fTimeLastDeflect in sync with OnGameFrame for dragging
 
-	// Updating hud text
-	Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.SpeedMpH(), rocket.iDeflectionCount);
+	// Updating hud text, reflect 'curving' of the rocket aswell
+	if (rocket.fSpeed > currentConfig.fMaxVelocity)
+		Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer_MaxSpeed", rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity, rocket.SpeedMpH());
+	else
+		Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
 
 	Forward_OnRocketDeflect(iIndex, rocket);
 
@@ -930,7 +930,10 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		Rocket rocket;
 		g_rockets.GetArray(iIndex, rocket);
 
-		CPrintToChatAll("%t", "Dodgeball_Death_Message", iClient, rocket.SpeedMpH(), rocket.iDeflectionCount);
+		if (rocket.fSpeed > currentConfig.fMaxVelocity)
+			CPrintToChatAll("%t", "Dodgeball_Death_Message_MaxSpeed", iClient, rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity, rocket.SpeedMpH());
+		else
+			CPrintToChatAll("%t", "Dodgeball_Death_Message", iClient, rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
 	}
 	
 	// If it is a 1v1 (someone left / went to spectator, disable NER)
@@ -1151,6 +1154,10 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	// Rocket damage
 	cfg.Get("rocket.damage formula", strBuffer, sizeof(strBuffer));
 	currentConfig.strDamageFormula = ShuntingYard(strBuffer); // We have to convert our formula's to reverse polish notation (RPN) to evaluate them
+
+	// Max velocity
+	cfg.GetFloat("rocket.max velocity", currentConfig.fMaxVelocity);
+	SetConVarFloat(FindConVar("sv_maxvelocity"), currentConfig.fMaxVelocity);
 
 	// Rocket speed
 	cfg.Get("rocket.speed formula", strBuffer, sizeof(strBuffer));
@@ -2040,11 +2047,12 @@ void Forward_OnRocketNewTarget(int iIndex, Rocket rocket)
 	Call_Finish();
 }
 
-void Forward_OnRocketHitPlayer(int iIndex, Rocket rocket)
+void Forward_OnRocketHitPlayer(int iIndex, Rocket rocket, int iClient)
 {
 	Call_StartForward(g_ForwardOnRocketHitPlayer);
 	Call_PushCell(iIndex);
 	Call_PushArrayEx(rocket, sizeof(rocket), SM_PARAM_COPYBACK);
+	Call_PushCell(iClient);
 	Call_Finish();
 }
 
