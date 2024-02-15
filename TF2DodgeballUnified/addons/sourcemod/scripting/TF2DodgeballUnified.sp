@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.5.1"
+#define PLUGIN_VERSION     "1.5.2"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -50,13 +50,17 @@ bool g_bFFAenabled;
 float g_fNERvoteTime;
 bool g_bNERenabled;
 
+int g_iOldTeam[MAXPLAYERS + 1];
+
+// NER Horn volume level when players are respawned
+ConVar g_Cvar_HornVolumeLevel;
+
 // Speedometer hud
 char g_hHudText[225]; // 225 is character limit for hud text
 Handle g_hHudTimer;
 Handle g_hMainHudSync;
 
 // Stealing
-int g_iOldTeam[MAXPLAYERS + 1];
 int g_iSteals [MAXPLAYERS + 1];
 
 // Array of rocket structs & config struct
@@ -94,6 +98,7 @@ public void OnPluginStart()
 	// NER
 	RegAdminCmd("sm_ner", CmdToggleNER, ADMFLAG_CONFIG, "Forcefully toggle NER (Never ending rounds)");
 	RegConsoleCmd("sm_votener", CmdVoteNER, "Vote to toggle NER");
+	g_Cvar_HornVolumeLevel = CreateConVar("NER_volume_level", "0.75", "Volume level of the horn played when respawning players", _, true, 0.0, true, 1.0);
 
 	// Solo toggle
 	RegConsoleCmd("sm_solo", CmdSolo, "Toggle solo mode");
@@ -167,7 +172,7 @@ void EnableDodgeball()
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
 	HookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
 	HookEvent("post_inventory_application", OnPlayerInventory, EventHookMode_Post);
-	HookEvent("object_deflected", OnObjectDeflected);	
+	HookEvent("object_deflected", OnObjectDeflected);
 	
 	PrecacheSound(SOUND_ALERT, true);
 	PrecacheSound(SOUND_SPAWN, true);
@@ -208,7 +213,7 @@ void DisableDodgeball()
 	UnhookEvent("arena_round_start", OnSetupFinished, EventHookMode_PostNoCopy);
 	UnhookEvent("teamplay_round_win", OnRoundEnd, EventHookMode_PostNoCopy);
 	UnhookEvent("teamplay_round_stalemate", OnRoundEnd, EventHookMode_PostNoCopy);
-	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);	
+	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
 	UnhookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
 	UnhookEvent("post_inventory_application", OnPlayerInventory, EventHookMode_Post);
 	UnhookEvent("object_deflected", OnObjectDeflected);
@@ -446,6 +451,13 @@ public Action OnStartTouch(int iEntity, int iClient)
 		if (rocket.iDeflectionCount == 0)
 		{
 			SetEntPropEnt(rocket.iEntity, Prop_Send, "m_hOwnerEntity", 0);
+
+			// This is to prevent an instant crash that happens only if the spawn rocket was stolen, but the steal was ignored
+			// This happens because m_hOriginalLauncher & m_hLauncher gets set by the stealer, but then we pass an m_hOwnerEntity of 0
+			// When we pass m_hOwnerEntity = 0, but m_hOriginalLauncher & ... != -1 the server will instantly crash
+			SetEntPropEnt(iEntity, Prop_Send, "m_hOriginalLauncher", -1);
+			SetEntPropEnt(iEntity, Prop_Send, "m_hLauncher", -1);
+
 			rocket.iOwner = 0;
 		}
 		
@@ -606,10 +618,55 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 	Rocket rocket;
 	g_rockets.GetArray(iIndex, rocket);
 
-	int iRocketPreviousTeam = rocket.iTeam; // For stealing check
+	int iNewOwner = GetClientOfUserId(hEvent.GetInt("userid"));
 
-	// Setting new rocket variables
-	rocket.iOwner = GetClientOfUserId(hEvent.GetInt("userid"));
+	// Stealing check, we can not steal a rocket which doesn't have a target
+	// We can also not steal a rocket which didn't change team (hit own rocket, or whilst FFA)
+	if (iNewOwner != rocket.iTarget && rocket.bHasTarget && GetClientTeam(iNewOwner) != rocket.iTeam)
+	{
+
+		// Ignore the steal, there might still be some movement to the rocket's position,
+		// but since we ignore that the rocket has been deflected the direction will be reset next gameframe
+		if (!currentConfig.bStealingPossible)
+		{
+			// Resetting rocket owner & team
+			SetEntPropEnt(rocket.iEntity, Prop_Send, "m_hOwnerEntity", rocket.iOwner);
+			SetEntProp(rocket.iEntity, Prop_Send, "m_iTeamNum", rocket.iTeam);
+
+			CPrintToChat(iNewOwner, "%t", "Dodgeball_Stealing_Not_Enabled");
+
+			return;
+		}
+		
+		g_iSteals[iNewOwner]++;
+		Forward_OnRocketSteal(iIndex, rocket, g_iSteals[iNewOwner]);
+
+		if (currentConfig.iMaxSteals >= 0)
+		{
+			// Kill Stealer
+			if (g_iSteals[iNewOwner] > currentConfig.iMaxSteals)
+			{
+				CPrintToChat(iNewOwner, "%t", "Dodgeball_Steal_Slay_Client");
+				CPrintToChatAll("%t", "Dodgeball_Steal_Announce_Slay_All", iNewOwner); 
+
+				SDKHooks_TakeDamage(iNewOwner, iNewOwner, iNewOwner, 9999.0);
+			}
+			// Warn stealer
+			else
+			{
+				CPrintToChat(iNewOwner, "%t", "Dodgeball_Steal_Warning_Client", g_iSteals[iNewOwner], currentConfig.iMaxSteals);
+				CPrintToChatAll("%t", "Dodgeball_Steal_Announce_All", iNewOwner, rocket.iTarget);
+			}
+		}
+		rocket.bStolen = true;
+	}
+	else
+	{
+		rocket.bStolen = false;
+	}
+
+	// Setting new rocket variables	
+	rocket.iOwner = iNewOwner;
 	rocket.iTeam = g_bFFAenabled ? 1 : GetClientTeam(rocket.iOwner);
 	rocket.iDeflectionCount++;
 
@@ -635,37 +692,6 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 
 	SetEntDataFloat(rocket.iEntity, FindSendPropInfo("CTFProjectile_Rocket", "m_iDeflected") + 4, rocket.fDamage, true);
 	SetEntPropEnt(rocket.iEntity, Prop_Send, "m_hOwnerEntity", rocket.iOwner);
-
-	// Stealing check, we can not steal a rocket which doesn't have a target
-	// We can also not steal a rocket which didn't change team (hit own rocket, or whilst FFA)
-	if (rocket.iOwner != rocket.iTarget && rocket.bHasTarget && iRocketPreviousTeam != rocket.iTeam)
-	{
-		g_iSteals[rocket.iOwner]++;
-		Forward_OnRocketSteal(iIndex, rocket, g_iSteals[rocket.iOwner]);
-
-		if (currentConfig.iMaxSteals >= 0)
-		{
-			// Kill Stealer
-			if (g_iSteals[rocket.iOwner] > currentConfig.iMaxSteals)
-			{
-				CPrintToChat(rocket.iOwner, "%t", "Dodgeball_Steal_Slay_Client");
-				CPrintToChatAll("%t", "Dodgeball_Steal_Announce_Slay_All", rocket.iOwner);
-
-				SDKHooks_TakeDamage(rocket.iOwner, rocket.iOwner, rocket.iOwner, 9999.0);
-			}
-			// Warn stealer
-			else
-			{
-				CPrintToChat(rocket.iOwner, "%t", "Dodgeball_Steal_Warning_Client", g_iSteals[rocket.iOwner], currentConfig.iMaxSteals);
-				CPrintToChatAll("%t", "Dodgeball_Steal_Announce_All", rocket.iOwner, rocket.iTarget);
-			}
-		}
-		rocket.bStolen = true;
-	}
-	else
-	{
-		rocket.bStolen = false;
-	}
 
 	rocket.bHasTarget = false;
 	rocket.bRecentlyReflected = true; // We set our rocket.fTimeLastDeflect in sync with OnGameFrame for dragging
@@ -977,7 +1003,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				// We set attributes again, might not be required
 				SetAttributes(iSoloer);
 
-				EmitSoundToClient(iSoloer, SOUND_NER_RESPAWNED);
+				EmitSoundToClient(iSoloer, SOUND_NER_RESPAWNED, _, _, _, _, g_Cvar_HornVolumeLevel.FloatValue);
 
 				return;
 			}
@@ -995,7 +1021,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 			// Respawn every (dead) player
 			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
 			{
-				if (!IsClientInGame(iPlayer))
+				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer))
 					continue;
 
 				int iLifeState = GetEntProp(iPlayer, Prop_Send, "m_lifeState");
@@ -1023,7 +1049,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 					}
 
 					// Do not respawn solo players but add them back in queue
-					if (g_bSoloEnabled[iPlayer] && !IsSpectator(iPlayer))
+					if (g_bSoloEnabled[iPlayer])
 					{
 						// May be a redundant check, check if there is 'room' for using solo, the above code should've made the round not end already
 						if ((GetClientTeam(iPlayer) == view_as<int>(TFTeam_Red) ? --iRedTeamCount : --iBlueTeamCount) > 0)
@@ -1087,7 +1113,7 @@ void RespawnPlayerCallback(any aData)
 	for (int iClient = 1; iClient <= MaxClients; iClient++)
 	{
 		if (!g_bSoloEnabled[iClient] && IsValidClient(iClient))
-			EmitSoundToClient(iClient, SOUND_NER_RESPAWNED);
+			EmitSoundToClient(iClient, SOUND_NER_RESPAWNED, _, _, _, _, g_Cvar_HornVolumeLevel.FloatValue);
 	}
 	
 	SetAttributes(); // Otherwise player collisions are not disabled (weapon attributes should remain the same if loadout wasn't changed)
@@ -1222,6 +1248,7 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	// Stealing
 	cfg.GetInt("gameplay.max steals", currentConfig.iMaxSteals);
 	cfg.GetBool("gameplay.stolen rockets do damage", currentConfig.bStolenRocketsDoDamage);
+	cfg.GetBool("gameplay.stealing possible", currentConfig.bStealingPossible);
 
 	// Solo
 	cfg.GetBool("gameplay.solo enabled", currentConfig.bSoloAllowed);

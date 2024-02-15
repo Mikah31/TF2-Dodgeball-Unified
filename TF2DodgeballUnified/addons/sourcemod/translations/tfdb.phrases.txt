@@ -94,6 +94,11 @@
 		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} was slain for stealing rockets."
 	}
 
+	"Dodgeball_Stealing_Not_Enabled"
+	{
+		"en"		"[{olive}TFDB{default}] Stealing is {red}not{default} enabled."
+	}
+
 	"Dodgeball_Vote_Conflict"
 	{
 		"en"		"[{olive}TFDB{default}] There is currently another vote in progress."

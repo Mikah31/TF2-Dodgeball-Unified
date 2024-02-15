@@ -121,6 +121,7 @@ enum struct TFDBConfig
 	// Stealing
 	int iMaxSteals;
 	bool bStolenRocketsDoDamage;
+	bool bStealingPossible;
 	
 	// Orbitting
 	float fDelayTime; // Delay time before rocket starts speeding up
