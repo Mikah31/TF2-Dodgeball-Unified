@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.5.2"
+#define PLUGIN_VERSION     "1.5.3"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -51,6 +51,8 @@ float g_fNERvoteTime;
 bool g_bNERenabled;
 
 int g_iOldTeam[MAXPLAYERS + 1];
+
+Address g_pMyWearables; // Fix for wearables' colours not changing
 
 // NER Horn volume level when players are respawned
 ConVar g_Cvar_HornVolumeLevel;
@@ -105,6 +107,8 @@ public void OnPluginStart()
 
 	// Fixes soundbug (looping flamethrower sound) https://gitlab.com/nanochip/fixfireloop/-/blob/master/scripting/fixfireloop.sp
 	AddTempEntHook("TFExplosion", OnTFExplosion);
+
+	g_pMyWearables = view_as<Address>(FindSendPropInfo("CTFPlayer", "m_hMyWearables"));
 }
 
 // ---- Subplugin stuff -----------------------------
@@ -976,10 +980,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		int iRandomOpponent = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
 		g_iOldTeam[iRandomOpponent] = AnalogueTeam(g_iLastDeadTeam);
 		
-		// This is how to switch a persons team who is alive
-		SetEntProp(iRandomOpponent, Prop_Send, "m_lifeState", 2); // LIFE_DEAD = 2
-		ChangeClientTeam(iRandomOpponent, g_iLastDeadTeam);
-		SetEntProp(iRandomOpponent, Prop_Send, "m_lifeState", 0); // LIFE_ALIVE = 0
+		ChangeAliveClientTeam(iRandomOpponent, g_iLastDeadTeam);
 	}
 
 	// Someone died, both teams had 1 player left
@@ -1985,6 +1986,49 @@ int GetTeamRandomAliveClient(int iTeam)
 	}
 	
 	return iCount == 0 ? -1 : iClients[GetRandomInt(0, iCount - 1)];
+}
+
+void ChangeAliveClientTeam(int iClient, int iTeam)
+{
+	// Changing players team whilst keeping them alive
+	SetEntProp(iClient, Prop_Send, "m_lifeState", 2);
+	ChangeClientTeam(iClient, iTeam);
+	SetEntProp(iClient, Prop_Send, "m_lifeState", 0);
+	
+	// Fixing colour of cosmetic(s) not changing
+	int iWearable;
+	int iWearablesCount = GetPlayerWearablesCount(iClient);
+
+	Address pData = DereferencePointer(GetEntityAddress(iClient) + g_pMyWearables);
+	
+	for (int iIndex = 0; iIndex < iWearablesCount; iIndex++)
+	{
+		iWearable = LoadEntityHandleFromAddress(pData + view_as<Address>(0x04 * iIndex));
+		
+		SetEntProp(iWearable, Prop_Send, "m_nSkin", (iTeam == view_as<int>(TFTeam_Blue)) ? 1 : 0);
+		SetEntProp(iWearable, Prop_Send, "m_iTeamNum", iTeam);
+	}
+}
+
+/*
+	https://github.com/nosoop/SM-TFUtils/blob/master/scripting/tf2utils.sp
+	https://github.com/nosoop/stocksoup/blob/master/memory.inc
+*/
+
+int LoadEntityHandleFromAddress(Address pAddress)
+{
+	return EntRefToEntIndex(LoadFromAddress(pAddress, NumberType_Int32) | (1 << 31));
+}
+
+Address DereferencePointer(Address pAddress)
+{
+	// maybe someday we'll do 64-bit addresses
+	return view_as<Address>(LoadFromAddress(pAddress, NumberType_Int32));
+}
+
+int GetPlayerWearablesCount(int iClient)
+{
+	return GetEntData(iClient, view_as<int>(g_pMyWearables) + 0x0C);
 }
 
 // ---- Soundbug fix --------------------------------
