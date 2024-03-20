@@ -26,6 +26,7 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 - Airblast delay can now be changed in the config. (Taken from Swagville).
 - Never ending rounds. (Taken from Crimson Dynasty).
 - Added mid-air spiking.
+- Added soft antisteal
 
 # Changed features
 - Wave has been remade using trigonometric functions, classic/vertical waves have been remade (it might not be exactly the same).
