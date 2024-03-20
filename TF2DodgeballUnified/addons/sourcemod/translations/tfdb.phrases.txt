@@ -87,16 +87,35 @@
 		"en"		"[{olive}TFDB{default}] You have been slain for stealing rockets."
 	}
 
+	"Dodgeball_Soft_Stealing_No_Steals"
+	{
+		"en"		"[{olive}TFDB{default}] You can {red}not{default} steal anymore rockets."
+	}
+
+	"Dodgeball_Soft_Stealing_Not_Enabled"
+	{
+		"en"		"[{olive}TFDB{default}] Stealing is {red}not{default} enabled."
+	}
+
+	"Dodgeball_Soft_Stealing_Warn"
+	{
+		// 1:Amount of steals done this life, 2:Max amount of steals for 1 life
+		"#format"	"{1:i},{2:i}"
+		"en"		"[{olive}TFDB{default}] You have used {darkorange}{1}{default} / {darkorange}{2}{default} steals for this life."
+	}
+
+	"Dodgeball_No_Steals_Announce_All"
+	{
+		// 1:Name of person that can not steal anymore
+		"#format"	"{1:N}"
+		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} can no longer steal rockets."
+	}
+
 	"Dodgeball_Steal_Announce_Slay_All"
 	{
 		// 1:Name of person slain for stealing
 		"#format"	"{1:N}"
 		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} was slain for stealing rockets."
-	}
-
-	"Dodgeball_Stealing_Not_Enabled"
-	{
-		"en"		"[{olive}TFDB{default}] Stealing is {red}not{default} enabled."
 	}
 
 	"Dodgeball_Vote_Conflict"
@@ -147,6 +166,11 @@
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {community}enabled{default}."
 	}
+
+	"Dodgeball_NER_Forcefully_Enabled"
+	{
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is forcefully {community}enabled{default}."
+	}
 		
 	"Dodgeball_NER_Disabled"
 	{
@@ -196,5 +220,12 @@
 	"Dodgeball_Solo_Disabled_By_New_Config"
 	{
 		"en"		"[{olive}TFDB{default}] Your {darkmagenta}solo{default} has been {red}disabled{default} by new config."
+	}
+
+	"Dodgeball_Solo_Announce_All_Soloers"
+	{
+		// 1:All soloers
+		"#format"	"{1:s}"
+		"en"		"[{olive}TFDB{default}] {darkmagenta}Soloers{default}: {darkorange}{1}{default}"
 	}
 }

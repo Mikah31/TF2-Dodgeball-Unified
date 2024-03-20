@@ -120,8 +120,11 @@ enum struct TFDBConfig
 
 	// Stealing
 	int iMaxSteals;
+	bool bSoftAntiSteal;
 	bool bStolenRocketsDoDamage;
-	bool bStealingPossible;
+	bool bAnnounceSteals;
+	float fWallingDistance;
+	
 	
 	// Orbitting
 	float fDelayTime; // Delay time before rocket starts speeding up
@@ -141,6 +144,8 @@ enum struct TFDBConfig
 	bool bFFAallowed;
 	bool bNeverEndingRoundsAllowed;
 	bool bSoloAllowed;
+
+	int iForceNER;
 
 	// Voting timeouts
 	float fFFAvotingTimeout;
@@ -318,12 +323,12 @@ native int TFDB_GetRocketByIndex(int iIndex, any rocket[sizeof(Rocket)]);
 native bool TFDB_SetRocketByIndex(int iIndex, any rocket[sizeof(Rocket)]);
 
 /**
- * Checks if the player is a rocket's target.
+ * Checks how many rockets are targetting the player.
  * 
- * @return		True if player is a rocket's target, false otherwise.
+ * @return		Number of rockets targetting the client, 0 if error or not a rocket target.
  * @error		Target does not exist.
  */
-native bool TFDB_IsRocketTarget(int iClient);
+native int TFDB_NumRocketsTargetting(int iClient);
 
 /**
  * Gets config currently in use.
@@ -390,7 +395,7 @@ public void __pl_TFDB_SetNTVOptional()
 	MarkNativeAsOptional("TFDB_FindRocketByEntity");
 	MarkNativeAsOptional("TFDB_GetRocketByIndex");
 	MarkNativeAsOptional("TFDB_SetRocketByIndex");
-	MarkNativeAsOptional("TFDB_IsRocketTarget");
+	MarkNativeAsOptional("TFDB_NumRocketsTargetting");
 	MarkNativeAsOptional("TFDB_GetCurrentConfig");
 	MarkNativeAsOptional("TFDB_SetCurrentConfig");
 	MarkNativeAsOptional("TFDB_IsFFAenabled");

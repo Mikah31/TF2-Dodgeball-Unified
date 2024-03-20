@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.5.3"
+#define PLUGIN_VERSION     "1.6.0"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -122,7 +122,7 @@ public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] strError, int iE
 	CreateNative("TFDB_FindRocketByEntity", Native_FindRocketByEntity);
 	CreateNative("TFDB_GetRocketByIndex", Native_GetRocketByIndex);
 	CreateNative("TFDB_SetRocketByIndex", Native_SetRocketByIndex);
-	CreateNative("TFDB_IsRocketTarget", Native_IsRocketTarget);
+	CreateNative("TFDB_NumRocketsTargetting", Native_NumRocketsTargetting);
 	CreateNative("TFDB_GetCurrentConfig", Native_GetCurrentConfig);
 	CreateNative("TFDB_SetCurrentConfig", Native_SetCurrentConfig);
 	CreateNative("TFDB_IsFFAenabled", Native_IsFFAenabled);
@@ -283,10 +283,30 @@ public void OnGameFrame()
 		
 		float fTimeSinceLastDeflect = currentTime - rocket.fTimeLastDeflect;
 		float fTimeSinceLastBounce = currentTime - rocket.fTimeLastBounce;
-		// The extra factor is to vary the spiking length
+
+		// The extra factor is to vary the spiking length, we should probably give control over this in config
 		float fTimeSinceLastTurn = (currentTime - rocket.fTimeLastTurn) + (GetRandomFloat(-currentConfig.fSpikingTime*0.25, currentConfig.fSpikingTime*0.25));
 
 		static float fRocketPosition[3]; GetEntPropVector(rocket.iEntity, Prop_Data, "m_vecOrigin", fRocketPosition);
+
+		// Select new target if outside of dragging
+		if (!rocket.bHasTarget && fTimeSinceLastDeflect >= currentConfig.fDragTimeMax)
+		{
+			rocket.iTarget = SelectTarget(rocket.iTeam, rocket.iOwner, fRocketPosition, rocket.fDirection);
+
+			Forward_OnRocketNewTarget(n, rocket);
+
+			// If it is a wave rocket we need to set starting distance to the target to determine the phase of the wave
+			if (currentConfig.iWavetype)
+			{
+				static float fPlayerPosition[3];
+				GetClientEyePosition(rocket.iTarget, fPlayerPosition);
+				rocket.fWaveDistance = GetVectorDistance(fPlayerPosition, fRocketPosition);
+			}
+
+			rocket.bHasTarget = true;
+			rocket.EmitRocketSound(SOUND_ALERT);
+		}
 
 		// Dragging
 		if (fTimeSinceLastDeflect <= currentConfig.fDragTimeMax)
@@ -294,25 +314,6 @@ public void OnGameFrame()
 			static float fViewAngles[3];
 			GetClientEyeAngles(rocket.iOwner, fViewAngles);
 			GetAngleVectors(fViewAngles, rocket.fDirection, NULL_VECTOR, NULL_VECTOR);
-
-			// Select new target if needed, rocket.fDirection has been changed already in above code for new target calculation
-			if (!rocket.bHasTarget)
-			{
-				rocket.iTarget = SelectTarget(rocket.iTeam, rocket.iOwner, fRocketPosition, rocket.fDirection);
-
-				Forward_OnRocketNewTarget(n, rocket);
-
-				// If it is a wave rocket we need to set starting distance to the target to determine the phase of the wave
-				if (currentConfig.iWavetype)
-				{
-					static float fPlayerPosition[3];
-					GetClientEyePosition(rocket.iTarget, fPlayerPosition);
-					rocket.fWaveDistance = GetVectorDistance(fPlayerPosition, fRocketPosition);
-				}
-
-				rocket.bHasTarget = true;
-				rocket.EmitRocketSound(SOUND_ALERT);
-			}
 		}
 		// Turn to target if not dragging & outside of delay till turning
 		else if (rocket.bHasTarget && fTimeSinceLastDeflect >= currentConfig.fTurningDelay + currentConfig.fDragTimeMax)
@@ -333,8 +334,8 @@ public void OnGameFrame()
 			{
 				if (rocket.RangeToTarget() > ORBIT_RANGE || rocket.bBeingDelayed)
 				{
-					// Turning factor = normal rocket turning, or spiking behaviour
-					float fTurningFactor = currentConfig.iSpikingDeflects && currentConfig.iSpikingDeflects <= rocket.iDeflectionCount &&currentConfig.fSpikingMaxTime >= fTimeSinceLastDeflect && rocket.RangeToTarget() > SPIKING_RANGE ? currentConfig.fSpikingStrength : rocket.fTurnrate;
+					// Turning factor = normal rocket turning, or spiking behaviour -> we overturn when spiking
+					float fTurningFactor = currentConfig.iSpikingDeflects && currentConfig.iSpikingDeflects <= rocket.iDeflectionCount && currentConfig.fSpikingMaxTime >= fTimeSinceLastDeflect && rocket.RangeToTarget() > SPIKING_RANGE ? currentConfig.fSpikingStrength : rocket.fTurnrate;
 
 					// Smoothly change to direction to target using turnrate
 					rocket.fDirection[0] += (fDirectionToTarget[0] - rocket.fDirection[0]) * fTurningFactor;
@@ -362,7 +363,7 @@ public void OnGameFrame()
 			{
 				float fDistanceToPlayer = GetVectorDistance(fPlayerPosition, fRocketPosition);
 				
-				// See inf. square well -> (L-x) * nπ/L, x starts at max distance, so L-x = distance travelled to target (not exactly, but close enough)
+				// See inf. square well -> (L-x) * nπ/L, x starts at max distance, so L-x = distance travelled to target (not exactly, should do -250 due to airblast range, but close enough)
 				float fPhase = (rocket.fWaveDistance - fDistanceToPlayer) * rocket.fWaveOscillations * 3.14159 / rocket.fWaveDistance;
 
 				switch (currentConfig.iWavetype)
@@ -456,6 +457,7 @@ public Action OnStartTouch(int iEntity, int iClient)
 		{
 			SetEntPropEnt(rocket.iEntity, Prop_Send, "m_hOwnerEntity", 0);
 
+			// !!This is probably not needed anymore due to handling soft-antisteal differently!!
 			// This is to prevent an instant crash that happens only if the spawn rocket was stolen, but the steal was ignored
 			// This happens because m_hOriginalLauncher & m_hLauncher gets set by the stealer, but then we pass an m_hOwnerEntity of 0
 			// When we pass m_hOwnerEntity = 0, but m_hOriginalLauncher & ... != -1 the server will instantly crash
@@ -582,7 +584,7 @@ void CreateRocket(int iSpawnerEntity, int iTeam)
 	SetEntProp(rocket.iEntity, Prop_Send, "m_bCritical", 1); // We just want critical rockets for visibility
 
 	// We have to set rocket owner to a valid player, otherwise first object_deflected event is skipped
-	// This does mean that the rocket can't hit the selected enemy either
+	// This does mean that the rocket can't hit the selected owner either
 	rocket.iOwner = SelectTarget(AnalogueTeam(iTeam), 0, fPosition, rocket.fDirection);
 	SetEntPropEnt(rocket.iEntity, Prop_Send, "m_hOwnerEntity", rocket.iOwner);
 
@@ -616,50 +618,69 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 {
 	int iEntity = hEvent.GetInt("object_entindex");
 
-	int iIndex = FindRocketIndexByEntity(iEntity);
+	int iIndex = FindRocketIndexByEntity(iEntity);	
 	if (iIndex == -1) return; // Object deflected was not a rocket of ours
 
 	Rocket rocket;
 	g_rockets.GetArray(iIndex, rocket);
 
 	int iNewOwner = GetClientOfUserId(hEvent.GetInt("userid"));
+	int iWeapon;
 
-	// Stealing check, we can not steal a rocket which doesn't have a target
-	// We can also not steal a rocket which didn't change team (hit own rocket, or whilst FFA)
-	if (iNewOwner != rocket.iTarget && rocket.bHasTarget && GetClientTeam(iNewOwner) != rocket.iTeam)
-	{
-
-		// Ignore the steal, there might still be some movement to the rocket's position,
-		// but since we ignore that the rocket has been deflected the direction will be reset next gameframe
-		if (!currentConfig.bStealingPossible)
-		{
-			// Resetting rocket owner & team
-			SetEntPropEnt(rocket.iEntity, Prop_Send, "m_hOwnerEntity", rocket.iOwner);
-			SetEntProp(rocket.iEntity, Prop_Send, "m_iTeamNum", rocket.iTeam);
-
-			CPrintToChat(iNewOwner, "%t", "Dodgeball_Stealing_Not_Enabled");
-
-			return;
-		}
-		
+	// Stealing check
+	if (iNewOwner != rocket.iTarget &&
+		currentConfig.iMaxSteals >= 0 &&
+		rocket.bHasTarget &&
+		GetClientTeam(iNewOwner) != rocket.iTeam &&
+		!rocket.bBeingDelayed &&
+		GetEntitiesDistance(rocket.iTarget, iNewOwner) > currentConfig.fWallingDistance)
+	{		
 		g_iSteals[iNewOwner]++;
 		Forward_OnRocketSteal(iIndex, rocket, g_iSteals[iNewOwner]);
 
-		if (currentConfig.iMaxSteals >= 0)
+		// Soft anti-steal
+		if (currentConfig.bSoftAntiSteal)
+		{
+			// Prevent further stealing
+			if (g_iSteals[iNewOwner] >= currentConfig.iMaxSteals)
+			{
+				CPrintToChat(iNewOwner, "%t", "Dodgeball_Soft_Stealing_No_Steals");
+				if (currentConfig.bAnnounceSteals)
+					CPrintToChatAll("%t", "Dodgeball_No_Steals_Announce_All", iNewOwner);
+				
+				// Disabling the ability of reflecting rocket using attributes if not a target of (another) rocket
+				if (!NumRocketsTargetting(iNewOwner))
+				{
+					iWeapon = GetEntPropEnt(iNewOwner, Prop_Data, "m_hActiveWeapon");
+					TF2Attrib_SetByDefIndex(iWeapon, 826, 1.0); // Attrib 826 : airblast_deflect_projectiles_disabled
+				}
+			}
+			// Warn stealer
+			else
+			{
+				CPrintToChat(iNewOwner, "%t", "Dodgeball_Soft_Stealing_Warn", g_iSteals[iNewOwner], currentConfig.iMaxSteals);
+				if (currentConfig.bAnnounceSteals)
+					CPrintToChatAll("%t", "Dodgeball_Steal_Announce_All", iNewOwner, rocket.iTarget);
+			}
+		}
+		// Hard anti-steal
+		else
 		{
 			// Kill Stealer
 			if (g_iSteals[iNewOwner] > currentConfig.iMaxSteals)
 			{
 				CPrintToChat(iNewOwner, "%t", "Dodgeball_Steal_Slay_Client");
-				CPrintToChatAll("%t", "Dodgeball_Steal_Announce_Slay_All", iNewOwner); 
+				if (currentConfig.bAnnounceSteals)
+					CPrintToChatAll("%t", "Dodgeball_Steal_Announce_Slay_All", iNewOwner); 
 
-				SDKHooks_TakeDamage(iNewOwner, iNewOwner, iNewOwner, 9999.0);
+				ForcePlayerSuicide(iNewOwner);
 			}
 			// Warn stealer
 			else
 			{
 				CPrintToChat(iNewOwner, "%t", "Dodgeball_Steal_Warning_Client", g_iSteals[iNewOwner], currentConfig.iMaxSteals);
-				CPrintToChatAll("%t", "Dodgeball_Steal_Announce_All", iNewOwner, rocket.iTarget);
+				if (currentConfig.bAnnounceSteals)
+					CPrintToChatAll("%t", "Dodgeball_Steal_Announce_All", iNewOwner, rocket.iTarget);
 			}
 		}
 		rocket.bStolen = true;
@@ -667,6 +688,13 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 	else
 	{
 		rocket.bStolen = false;
+	}
+
+	// If rocket was stolen from a stealer we also need to disable again
+	if (currentConfig.bSoftAntiSteal && g_iSteals[rocket.iTarget] >= currentConfig.iMaxSteals && NumRocketsTargetting(rocket.iTarget) == 1)
+	{
+		iWeapon = GetEntPropEnt(rocket.iTarget, Prop_Data, "m_hActiveWeapon");
+		TF2Attrib_SetByDefIndex(iWeapon, 826, 1.0);
 	}
 
 	// Setting new rocket variables	
@@ -735,6 +763,10 @@ int SelectTarget(int iTeam, int iOwner, float fPosition[3], float fDirection[3])
 		}
 	}
 
+	// Return ability to reflect rockets to target
+	int iWeapon = GetEntPropEnt(iTarget, Prop_Data, "m_hActiveWeapon");
+	TF2Attrib_SetByDefIndex(iWeapon, 826, 0.0);
+
 	return iTarget;
 }
 
@@ -746,10 +778,17 @@ public void OnSetupFinished(Event hEvent, char[] strEventName, bool bDontBroadca
 	//PopulateRocketSpawners(); // We've done this already when parsing config, I don't know if this breaks things, as other plugins always set it at the start of the round again
 	g_fLastRocketSpawned = 0.0;
 
+	if (!g_bNERenabled && currentConfig.iForceNER >= 2)
+	{
+		g_bNERenabled = true;
+		CPrintToChatAll("%t", "Dodgeball_NER_Forcefully_Enabled");
+	}
+
 	SetAttributes();
 
 	// Solo stuff, round is starting
 	g_soloQueue.Clear();
+	char buffer[512], namebuffer[64];
 
 	int iRedTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Red));
 	int iBlueTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Blue));
@@ -757,14 +796,23 @@ public void OnSetupFinished(Event hEvent, char[] strEventName, bool bDontBroadca
 	for (int iClient = 1; iClient <= MaxClients; iClient++)
 	{
 		if (!IsValidClient(iClient)) continue;
+
+		g_iOldTeam[iClient] = 0; // FFA reset teams
 		
 		if (g_bSoloEnabled[iClient] && !IsSpectator(iClient))
 		{
 			// There are other players that are not solo'd (as of yet)
 			if ((GetClientTeam(iClient) == view_as<int>(TFTeam_Red) ? --iRedTeamCount : --iBlueTeamCount) > 0)
 			{
+				if (g_soloQueue.Empty)
+					Format(namebuffer, sizeof(namebuffer), "%N", iClient);
+				else
+					Format(namebuffer, sizeof(namebuffer), ", %N", iClient);
+			
+				StrCat(buffer, sizeof(buffer), namebuffer);
+
 				g_soloQueue.Push(iClient);
-				SDKHooks_TakeDamage(iClient, iClient, iClient, 9999.0); // This could mess with ranking plugins and such?
+				ForcePlayerSuicide(iClient);
 			}
 			// This person is last alive in team after all solo's, can't solo
 			else
@@ -781,6 +829,9 @@ public void OnSetupFinished(Event hEvent, char[] strEventName, bool bDontBroadca
 		g_hHudTimer = CreateTimer(0.1, RocketSpeedometer, _, TIMER_REPEAT);
 
 	g_bRoundStarted = true;
+
+	if (!g_soloQueue.Empty)
+		CPrintToChatAll("%t", "Dodgeball_Solo_Announce_All_Soloers", buffer);
 }
 
 // ---- Spawning & deleting rockets -----------------
@@ -853,6 +904,7 @@ void SetAttributes(int iSoloer = 0)
 		iWeapon = GetEntPropEnt(iSoloer, Prop_Data, "m_hActiveWeapon");
 
 		TF2Attrib_SetByDefIndex(iWeapon, 256, currentConfig.fAirblastDelay);
+		// They are solo, so we do not have to include soft antisteal
 
 		if (currentConfig.bPushPrevention)
 		{
@@ -883,6 +935,13 @@ void SetAttributes(int iSoloer = 0)
 
 		// Attribute 256 is "mult airblast refire time", which governs airblast delays (https://wiki.teamfortress.com/wiki/List_of_item_attributes)
 		TF2Attrib_SetByDefIndex(iWeapon, 256, currentConfig.fAirblastDelay);
+
+		// Soft antisteal if stealing is disabled
+		if (!currentConfig.iMaxSteals && currentConfig.bSoftAntiSteal) // if 0
+		{
+			CPrintToChat(iClient, "%t", "Dodgeball_Soft_Stealing_Not_Enabled");
+			TF2Attrib_SetByDefIndex(iWeapon, 826, 1.0); // Attrib 826 : airblast_deflect_projectiles_disabled
+		}
 
 		if (currentConfig.bPushPrevention)
 		{
@@ -984,7 +1043,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 	}
 
 	// Someone died, both teams had 1 player left
-	if (GetTeamAliveCount(g_iLastDeadTeam) == 1 && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) == 1)
+	if (GetTeamAliveCount(g_iLastDeadTeam) <= 1 && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) <= 1)
 	{
 		// First respawn solo players
 		if (!g_soloQueue.Empty)
@@ -992,7 +1051,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 			int iSoloer = g_soloQueue.Pop();
 
 			// Handles people who don't have solo enabled anymore, but are still left in queue
-			while (!g_bSoloEnabled[iSoloer] && !g_soloQueue.Empty && !IsSpectator(iSoloer))
+			while (!g_bSoloEnabled[iSoloer] && !g_soloQueue.Empty && IsSpectator(iSoloer))
 				iSoloer = g_soloQueue.Pop();
 			
 			if (g_bSoloEnabled[iSoloer] && !IsSpectator(iSoloer))
@@ -1013,13 +1072,19 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		// NER, respawn everyone
 		if (g_bNERenabled)
 		{
+			// Solo queue should be empty anyway, but it is good to clear it
+			g_soloQueue.Clear();
+			char buffer[512], namebuffer[64]; // Announcing soloers
+			
+			// NER randomizing & balancing teams
+			int iNERplayers[MAXPLAYERS + 1];
+			int iTotalNERplayers = 0;
+
+			// Take 1 person out of solo to make sure round doesn't end
+			int iMarkedClient;
+			
 			int iWinner = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
 
-			// Correction, as the person who died last can not be respawned the same frame, so they're automatically 'solo'
-			int iRedTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Red)) - g_iLastDeadTeam == view_as<int>(TFTeam_Red) ? 1 : 0;
-			int iBlueTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Blue)) - g_iLastDeadTeam == view_as<int>(TFTeam_Blue) ? 1 : 0;
-
-			// Respawn every (dead) player
 			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
 			{
 				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer))
@@ -1030,77 +1095,77 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				// If player is NOT alive, (LIFE_ALIVE = 0), respawn them
 				if (iLifeState)
 				{
-					// Reset to old team
-					if (g_iOldTeam[iPlayer])
-					{
-						ChangeClientTeam(iPlayer, g_iOldTeam[iPlayer]);
-						g_iOldTeam[iPlayer] = 0;
-					}
-
-					// If the dead team only has 1 player left (in the team) the round will end (since we respawn that player the next frame), we switch someone
-					if (GetTeamClientCount(g_iLastDeadTeam) == 1 && GetTeamClientCount(AnalogueTeam(g_iLastDeadTeam)) > 1)
-					{
-						if (g_bSoloEnabled[iPlayer])
-						{
-							g_bSoloEnabled[iPlayer] = false;
-							CPrintToChat(iPlayer, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
-						}
-
-						ChangeClientTeam(iPlayer, g_iLastDeadTeam);
-					}
-
-					// Do not respawn solo players but add them back in queue
-					if (g_bSoloEnabled[iPlayer])
-					{
-						// May be a redundant check, check if there is 'room' for using solo, the above code should've made the round not end already
-						if ((GetClientTeam(iPlayer) == view_as<int>(TFTeam_Red) ? --iRedTeamCount : --iBlueTeamCount) > 0)
-						{
-							g_soloQueue.Push(iPlayer);
-							CPrintToChat(iPlayer, "%t", "Dodgeball_Solo_NER_Notify_Not_Respawned");
-						}
-						else
-						{
-							g_bSoloEnabled[iPlayer] = false;
-							CPrintToChat(iPlayer, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
-							
-							TF2_RespawnPlayer(iPlayer);
-						}
-					}
+					// Randomizing & balancing teams
+					if (!g_bSoloEnabled[iPlayer])
+						iNERplayers[iTotalNERplayers++] = iPlayer;
 					else
-					{
-						TF2_RespawnPlayer(iPlayer);
-					}
+						iMarkedClient = iPlayer; // This player will be forced out of solo if no other available players	
 				}
 			}
 
-			if (g_bSoloEnabled[iWinner])
+			// Start spawning for the last dead team first to make sure round doesn't end
+			int iNewTeam = g_iLastDeadTeam;
+
+			if (!iTotalNERplayers)
 			{
-				// Winner is not only one alive in the team, so they can return to solo
-				if (GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) != 1)
+				g_bSoloEnabled[iMarkedClient] = false;
+				CPrintToChat(iMarkedClient, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
+
+				iNERplayers[iTotalNERplayers++] = iMarkedClient;
+			}
+
+			// Randomize & balance teams
+			for (int i = iTotalNERplayers - 1; i >= 0; i--)
+			{
+				int j = GetRandomInt(0, i);
+
+				ChangeClientTeam(iNERplayers[j], iNewTeam);
+				TF2_RespawnPlayer(iNERplayers[j]);
+
+				iNewTeam = AnalogueTeam(iNewTeam);
+				iNERplayers[j] = iNERplayers[i];
+			}
+
+			// Winner last alive in team
+			if (g_bSoloEnabled[iWinner] && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) == 1)
+			{
+				g_bSoloEnabled[iWinner] = false;
+				CPrintToChat(iWinner, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
+			}
+
+			if (!g_bSoloEnabled[iWinner])
+				SetEntityHealth(iWinner, 175);
+				
+
+			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
+			{
+				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer))
+					continue;
+				
+				if (g_bSoloEnabled[iPlayer])
 				{
-					g_soloQueue.Push(iWinner);
-					CPrintToChat(iWinner, "%t", "Dodgeball_Solo_NER_Notify_Not_Respawned");
-					SDKHooks_TakeDamage(iWinner, iWinner, iWinner, 9999.0);
-				}
-				// Can't solo, last in team
-				else
-				{
-					g_bSoloEnabled[iWinner] = false;
-					CPrintToChat(iWinner, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
+					if (g_soloQueue.Empty)
+						Format(namebuffer, sizeof(namebuffer), "%N", iPlayer);
+					else
+						Format(namebuffer, sizeof(namebuffer), ", %N", iPlayer);
+			
+					StrCat(buffer, sizeof(buffer), namebuffer);
+
+					g_soloQueue.Push(iPlayer);
+					CPrintToChat(iPlayer, "%t", "Dodgeball_Solo_NER_Notify_Not_Respawned");
+
+					if (iPlayer == iWinner)
+						ForcePlayerSuicide(iWinner);
 				}
 			}
 
-			// Test if last person who died had solo enabled
 			if (g_bSoloEnabled[iClient])
-			{
 				RequestFrame(RespawnPlayerCallback, 0);
-			}
-			// Last person not solo
 			else
-			{
-				// We have to respawn the last player 1 frame later, as they haven't died yet (since this is a PRE hook)
-				RequestFrame(RespawnPlayerCallback, iClient);
-			}
+				RequestFrame(RespawnPlayerCallback, iClient); // We have to respawn the last player 1 frame later, as they haven't died yet (since this is a PRE hook)
+
+			if (!g_soloQueue.Empty)
+				CPrintToChatAll("%t", "Dodgeball_Solo_Announce_All_Soloers", buffer);
 		}
 	}
 }
@@ -1163,7 +1228,7 @@ public void OnRoundEnd(Event hEvent, char[] strEventName, bool bDontBroadcast)
 }
 
 // ---- Config --------------------------------------
-bool ParseConfig(char[] strConfigFile = "general.cfg")
+bool ParseConfig(char[] strConfigFile = "general.cfg", bool bUpdateGameplayConfig = true)
 {
 	// Relative location of config
 	char strFileName[PLATFORM_MAX_PATH];
@@ -1208,10 +1273,6 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	// Orbitting
 	cfg.GetFloat("rocket.orbit factor", currentConfig.fOrbitFactor);
 
-	// Rocket spawning
-	cfg.GetInt("gameplay.max rockets", currentConfig.iMaxRockets);
-	cfg.GetFloat("gameplay.rocket spawn interval", currentConfig.fSpawnInterval);
-
 	// Rocket dragging
 	cfg.GetFloat("rocket.drag time max", currentConfig.fDragTimeMax);
 	cfg.GetFloat("rocket.turning delay", currentConfig.fTurningDelay);
@@ -1235,35 +1296,47 @@ bool ParseConfig(char[] strConfigFile = "general.cfg")
 	cfg.GetFloat("rocket.maximum amplitude", currentConfig.fWaveAmplitudeMax);
 
 	// General gameplay
-	cfg.GetBool("gameplay.airblast push prevention", currentConfig.bPushPrevention);
-	cfg.GetFloat("gameplay.airblast push scale", currentConfig.fPushScale); // Does nothing if bPushPrevention enabled
+	if (bUpdateGameplayConfig)
+	{
+		// Rocket spawning
+		cfg.GetInt("gameplay.max rockets", currentConfig.iMaxRockets);
+		cfg.GetFloat("gameplay.rocket spawn interval", currentConfig.fSpawnInterval);
 
-	cfg.GetBool("gameplay.disable player collisions", currentConfig.bDisablePlayerCollisions);
-	cfg.GetBool("gameplay.airblastable team rockets", currentConfig.bAirblastTeamRockets);
-	cfg.GetBool("gameplay.rocket speedometer", currentConfig.bSpeedometer);
-	cfg.GetFloat("gameplay.delay time", currentConfig.fDelayTime);
+		// Airblast pushback
+		cfg.GetBool("gameplay.airblast push prevention", currentConfig.bPushPrevention);
+		cfg.GetFloat("gameplay.airblast push scale", currentConfig.fPushScale); // Does nothing if bPushPrevention enabled
 
-	cfg.GetFloat("gameplay.airblast delay", currentConfig.fAirblastDelay);
-	currentConfig.fAirblastDelay /= 0.75 ; // 0.75 is normal airblast delay, the attribute is a multiplier, so we convert to multiplier
+		cfg.GetBool("gameplay.disable player collisions", currentConfig.bDisablePlayerCollisions);
+		cfg.GetBool("gameplay.airblastable team rockets", currentConfig.bAirblastTeamRockets);
+		cfg.GetBool("gameplay.rocket speedometer", currentConfig.bSpeedometer);
+		cfg.GetFloat("gameplay.delay time", currentConfig.fDelayTime);
 
-	// Stealing
-	cfg.GetInt("gameplay.max steals", currentConfig.iMaxSteals);
-	cfg.GetBool("gameplay.stolen rockets do damage", currentConfig.bStolenRocketsDoDamage);
-	cfg.GetBool("gameplay.stealing possible", currentConfig.bStealingPossible);
+		cfg.GetFloat("gameplay.airblast delay", currentConfig.fAirblastDelay);
+		currentConfig.fAirblastDelay /= 0.75 ; // 0.75 is normal airblast delay, the attribute is a multiplier, so we convert to multiplier
 
-	// Solo
-	cfg.GetBool("gameplay.solo enabled", currentConfig.bSoloAllowed);
+		// Stealing
+		cfg.GetInt("gameplay.max steals", currentConfig.iMaxSteals);
+		cfg.GetBool("gameplay.stolen rockets do damage", currentConfig.bStolenRocketsDoDamage);
+		cfg.GetBool("gameplay.soft antisteal", currentConfig.bSoftAntiSteal);
+		cfg.GetFloat("gameplay.walling distance", currentConfig.fWallingDistance);
+		cfg.GetBool("gameplay.announce stealing", currentConfig.bAnnounceSteals);
+
+		// Solo
+		cfg.GetBool("gameplay.solo enabled", currentConfig.bSoloAllowed);
+
+		// FFA (Free for all)
+		cfg.GetBool("gameplay.free for all", currentConfig.bFFAallowed);
+		cfg.GetFloat("gameplay.ffa voting timeout", currentConfig.fFFAvotingTimeout);
+
+		// NER (Never ending rounds)
+		cfg.GetBool("gameplay.never ending rounds", currentConfig.bNeverEndingRoundsAllowed);
+		cfg.GetFloat("gameplay.ner voting timeout", currentConfig.fNERvotingTimeout);
+		cfg.GetInt("gameplay.ner forced", currentConfig.iForceNER);
+
+		if (currentConfig.bNeverEndingRoundsAllowed && currentConfig.iForceNER)
+			g_bNERenabled = true;
+	}
 	
-	// FFA (Free for all)
-	cfg.GetBool("gameplay.free for all", currentConfig.bFFAallowed);
-	cfg.GetFloat("gameplay.ffa voting timeout", currentConfig.fFFAvotingTimeout);
-
-	// NER (Never ending rounds)
-	cfg.GetBool("gameplay.never ending rounds", currentConfig.bNeverEndingRoundsAllowed);
-	cfg.GetFloat("gameplay.ner voting timeout", currentConfig.fNERvotingTimeout);
-	
-	delete cfg;
-
 	PopulateRocketSpawners();
 	Forward_OnRocketsConfigExecuted(strConfigFile, currentConfig);
 
@@ -1537,7 +1610,7 @@ char[] ShuntingYard(char[] strFormula)
 	char strParsedFormula[256];
 	char readBuf[2]; // We can't just StrCat a char, has to be char[] for StrCat, null terminator so size 2
 
-	// Reversing stack, shame we do not have deque
+	// Reversing stack
 	while (!outputStack.Empty)
 		operatorStack.Push(outputStack.Pop());
 
@@ -1617,7 +1690,7 @@ public Action CmdSolo(int iClient, int iArgs)
 		// Alive, kill player & add to queue
 		if (IsValidClient(iClient) && g_bRoundStarted)
 		{
-			SDKHooks_TakeDamage(iClient, iClient, iClient, 9999.0);
+			ForcePlayerSuicide(iClient);
 			g_soloQueue.Push(iClient);
 		}
 
@@ -1885,9 +1958,18 @@ void RemoveInvalidRockets()
 
 		if (!IsValidRocket(rocket.iRef)) // Rocket has exploded
 		{
+			// Rocket owner if soft antisteal shouldn't be able to reflect anymore
+			if (currentConfig.bSoftAntiSteal && g_iSteals[rocket.iTarget] >= currentConfig.iMaxSteals && NumRocketsTargetting(rocket.iTarget) == 1)
+			{
+				int iWeapon = GetEntPropEnt(rocket.iTarget, Prop_Data, "m_hActiveWeapon");
+				TF2Attrib_SetByDefIndex(iWeapon, 826, 1.0);
+			}
+
+			g_fLastRocketSpawned = GetGameTime(); // Delay until spawning next rocket
+			
 			g_rockets.Erase(n--); // g_rockets.Length changes
 		}
-		else if (!IsValidClient(rocket.iOwner) || !IsValidClient(rocket.iTarget)) // Target / owner became invalid (left game or died)
+		else if (!IsValidClient(rocket.iOwner) || !IsValidClient(rocket.iTarget)) // Target / owner became invalid (left game or died), could also prevent soft anti steal, but rare cases
 		{
 			RemoveEdict(rocket.iEntity);
 			g_rockets.Erase(n--);
@@ -1927,6 +2009,25 @@ bool IsDodgeBallMap()
     return StrContains(strMap, "tfdb_", false) != -1;
 }
 
+int NumRocketsTargetting(int iClient)
+{
+	if (!IsValidClient(iClient))
+		return 0;
+	
+	Rocket rocket;
+	int count = 0;
+
+	for (int n = 0; n < g_rockets.Length; n++)
+	{
+		g_rockets.GetArray(n, rocket);
+		
+		if (rocket.bHasTarget && rocket.iTarget == iClient)
+			count++;
+	}
+
+	return count;
+}
+
 // ---- General utils -------------------------------
 bool IsValidClient(int iClient)
 {
@@ -1952,6 +2053,14 @@ void CopyVec3(float fTo[3], float fFrom[3])
 	fTo[0] = fFrom[0];
 	fTo[1] = fFrom[1];
 	fTo[2] = fFrom[2];
+}
+
+stock float GetEntitiesDistance(int iEnt1, int iEnt2)
+{
+	static float fOrig1[3]; GetEntPropVector(iEnt1, Prop_Send, "m_vecOrigin", fOrig1);
+	static float fOrig2[3]; GetEntPropVector(iEnt2, Prop_Send, "m_vecOrigin", fOrig2);
+	
+	return GetVectorDistance(fOrig1, fOrig2);
 }
 
 bool BothTeamsPlaying()
@@ -2220,24 +2329,11 @@ public any Native_SetRocketByIndex(Handle hPlugin, int iNumParams)
 	return SP_ERROR_NONE;
 }
 
-public any Native_IsRocketTarget(Handle hPlugin, int iNumParams)
+public any Native_NumRocketsTargetting(Handle hPlugin, int iNumParams)
 {
 	int iClient = GetNativeCell(1);
 
-	if (!IsValidClient(iClient))
-		return false;
-	
-	Rocket rocket;
-
-	for (int n = 0; n < g_rockets.Length; n++)
-	{
-		g_rockets.GetArray(n, rocket);
-		
-		if (rocket.iTarget == iClient)
-			return true;
-	}
-
-	return false;
+	return NumRocketsTargetting(iClient);
 }
 
 public any Native_GetCurrentConfig(Handle hPlugin, int iNumParams)
