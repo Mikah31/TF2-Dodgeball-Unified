@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.6.0"
+#define PLUGIN_VERSION     "1.6.1"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -50,6 +50,8 @@ bool g_bFFAenabled;
 float g_fNERvoteTime;
 bool g_bNERenabled;
 
+int g_iBot; // Keeping track of dodgeball bot (for NER)
+
 int g_iOldTeam[MAXPLAYERS + 1];
 
 Address g_pMyWearables; // Fix for wearables' colours not changing
@@ -72,6 +74,9 @@ TFDBConfig currentConfig;
 // Solo stuff
 ArrayStack g_soloQueue;
 bool g_bSoloEnabled[MAXPLAYERS + 1];
+
+// ---- Debugging -----------------------------------
+ConVar g_Cvar_SeeBotsAsPlayers; // For testing NER with bots
 
 // ---- Forward handles (subplugins) ----------------
 Handle g_ForwardOnRocketCreated;
@@ -101,6 +106,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_ner", CmdToggleNER, ADMFLAG_CONFIG, "Forcefully toggle NER (Never ending rounds)");
 	RegConsoleCmd("sm_votener", CmdVoteNER, "Vote to toggle NER");
 	g_Cvar_HornVolumeLevel = CreateConVar("NER_volume_level", "0.75", "Volume level of the horn played when respawning players", _, true, 0.0, true, 1.0);
+	g_Cvar_SeeBotsAsPlayers = CreateConVar("NER_BotDebug", "0", "Makes it so that NER plugin ignores bots & view them as players.", _, true, 0.0, true, 1.0);
 
 	// Solo toggle
 	RegConsoleCmd("sm_solo", CmdSolo, "Toggle solo mode");
@@ -350,7 +356,7 @@ public void OnGameFrame()
 					rocket.fDirection[2] += (fDirectionToTarget[2] - rocket.fDirection[2]) * rocket.fTurnrate;
 				}
 
-				// We randomize spiking timing to vary length of spikes, these spikes were originally created by turning every x seconds (which was not synced with every game frame)
+				// We randomize spiking timing to vary length of spikes
 				rocket.fTimeLastTurn = currentTime;
 			}
 
@@ -777,6 +783,7 @@ public void OnSetupFinished(Event hEvent, char[] strEventName, bool bDontBroadca
 
 	//PopulateRocketSpawners(); // We've done this already when parsing config, I don't know if this breaks things, as other plugins always set it at the start of the round again
 	g_fLastRocketSpawned = 0.0;
+	g_iBot = GetBotClient();
 
 	if (!g_bNERenabled && currentConfig.iForceNER >= 2)
 	{
@@ -1072,6 +1079,10 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		// NER, respawn everyone
 		if (g_bNERenabled)
 		{
+			// If bot voted off & round didn't forcefully end let round end
+			if (g_iBot != GetBotClient())
+				return;
+
 			// Solo queue should be empty anyway, but it is good to clear it
 			g_soloQueue.Clear();
 			char buffer[512], namebuffer[64]; // Announcing soloers
@@ -1087,7 +1098,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 
 			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
 			{
-				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer))
+				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer) || iPlayer == g_iBot)
 					continue;
 
 				int iLifeState = GetEntProp(iPlayer, Prop_Send, "m_lifeState");
@@ -1103,9 +1114,6 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				}
 			}
 
-			// Start spawning for the last dead team first to make sure round doesn't end
-			int iNewTeam = g_iLastDeadTeam;
-
 			if (!iTotalNERplayers)
 			{
 				g_bSoloEnabled[iMarkedClient] = false;
@@ -1113,6 +1121,14 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 
 				iNERplayers[iTotalNERplayers++] = iMarkedClient;
 			}
+
+			
+			int iNewTeam;
+
+			if (g_iBot)
+				iNewTeam = AnalogueTeam(GetClientTeam(g_iBot)); // Spawning everyone on opposite team of bot
+			else
+				iNewTeam = g_iLastDeadTeam; // Start spawning for the last dead team first to make sure round doesn't end
 
 			// Randomize & balance teams
 			for (int i = iTotalNERplayers - 1; i >= 0; i--)
@@ -1122,11 +1138,29 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				ChangeClientTeam(iNERplayers[j], iNewTeam);
 				TF2_RespawnPlayer(iNERplayers[j]);
 
-				iNewTeam = AnalogueTeam(iNewTeam);
+				if (!g_iBot)
+					iNewTeam = AnalogueTeam(iNewTeam);
+				
 				iNERplayers[j] = iNERplayers[i];
 			}
 
-			// Winner last alive in team
+			// Sometimes players do not get respawned whilst they should be
+			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
+			{
+				if (!IsValidClient(iPlayer) || IsSpectator(iPlayer) || g_bSoloEnabled[iPlayer])
+					continue;
+				
+				if (!IsPlayerAlive(iPlayer))
+				{
+					ChangeClientTeam(iPlayer, iNewTeam);
+					TF2_RespawnPlayer(iPlayer);
+
+					if (!g_iBot)
+						iNewTeam = AnalogueTeam(iNewTeam);
+				}
+			}
+
+			// Winner last alive in team, can't solo
 			if (g_bSoloEnabled[iWinner] && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) == 1)
 			{
 				g_bSoloEnabled[iWinner] = false;
@@ -1998,6 +2032,7 @@ int FindRocketIndexByEntity(int iEntity)
 	return -1;
 }
 
+// Technically all valid references would be a valid 'rocket', assuming a rocket reference is meant to be checked
 bool IsValidRocket(int iRef)
 {
 	return EntRefToEntIndex(iRef) != INVALID_ENT_REFERENCE ? true : false;
@@ -2066,6 +2101,22 @@ stock float GetEntitiesDistance(int iEnt1, int iEnt2)
 bool BothTeamsPlaying()
 {
 	return GetTeamAliveCount(view_as<int>(TFTeam_Blue)) > 0 && GetTeamAliveCount(view_as<int>(TFTeam_Red)) > 0;
+}
+
+int GetBotClient()
+{
+	// Shouldn't really use this 'shortcut',
+	// we should probably also check if bot is not in spectator or something along those lines
+	if (g_Cvar_SeeBotsAsPlayers.BoolValue)
+		return 0;
+
+	for (int iClient = 1; iClient <= MaxClients; iClient++)
+	{
+		if (IsClientInGame(iClient) && IsFakeClient(iClient))
+			return iClient;
+	}
+	
+	return 0;
 }
 
 int GetTeamAliveCount(int iTeam)
