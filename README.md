@@ -32,7 +32,7 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 - Wave has been remade using trigonometric functions, classic/vertical waves have been remade (it might not be exactly the same).
 - Dodgeball config handling & layout has been changed. (They are not compatible with previous plugins)
 - Translations has slightly been altered for consistency. (They are not compatible with previous plugins)
-- Many subplugins have been integrated into the main plugin. (Speedometer, Airblast prevention, Anti snipe, No blocking, Free for all, Never ending rounds)
+- Many subplugins have been integrated into the main plugin. (Speedometer, Airblast prevention, solo, Free for all, Never ending rounds)
 - Rockets are now struct enums, which should help creating subplugins.
 - Delay time now only increases whilst in orbitting range.
 - Bounce time (when downspiking) has been added instead of scaling the bounce vector, this can be used to create bigger (or smaller) bounces.
