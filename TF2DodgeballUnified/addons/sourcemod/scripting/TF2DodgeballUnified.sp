@@ -769,10 +769,13 @@ int SelectTarget(int iTeam, int iOwner, float fPosition[3], float fDirection[3])
 		}
 	}
 
-	// Return ability to reflect rockets to target
-	int iWeapon = GetEntPropEnt(iTarget, Prop_Data, "m_hActiveWeapon");
-	TF2Attrib_SetByDefIndex(iWeapon, 826, 0.0);
-
+	if (iTarget > 0)
+	{
+		// Return ability to reflect rockets to target
+		int iWeapon = GetEntPropEnt(iTarget, Prop_Data, "m_hActiveWeapon");
+		TF2Attrib_SetByDefIndex(iWeapon, 826, 0.0);
+	}
+	
 	return iTarget;
 }
 
@@ -1040,20 +1043,21 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		g_bNERenabled = false;
 	}
 
-	// Switch people's team until 1 player left if FFA or NER
-	if ((g_bNERenabled || g_bFFAenabled) && GetTeamAliveCount(g_iLastDeadTeam) == 1 && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) > 1)
+	if (GetTeamAliveCount(g_iLastDeadTeam) == 1)
 	{
-		int iRandomOpponent = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
-		g_iOldTeam[iRandomOpponent] = AnalogueTeam(g_iLastDeadTeam);
-		
-		ChangeAliveClientTeam(iRandomOpponent, g_iLastDeadTeam);
-	}
 
-	// Someone died, both teams had 1 player left
-	if (GetTeamAliveCount(g_iLastDeadTeam) <= 1 && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) <= 1)
-	{
-		// First respawn solo players
-		if (!g_soloQueue.Empty)
+		// Switch people's team until 1 player left if NER
+		if ((g_bNERenabled || g_bFFAenabled) && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) > 1)
+		{
+			int iRandomOpponent = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
+			g_iOldTeam[iRandomOpponent] = AnalogueTeam(g_iLastDeadTeam);
+		
+			ChangeAliveClientTeam(iRandomOpponent, g_iLastDeadTeam);
+
+			return;
+		}
+		// If no one can be switched (or NER not enabled) respawn solo players
+		else if (!g_soloQueue.Empty)
 		{
 			int iSoloer = g_soloQueue.Pop();
 
@@ -1067,84 +1071,79 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				ChangeClientTeam(iSoloer, g_iLastDeadTeam);
 				TF2_RespawnPlayer(iSoloer);
 
-				// We set attributes again, might not be required
-				SetAttributes(iSoloer);
-
 				EmitSoundToClient(iSoloer, SOUND_NER_RESPAWNED, _, _, _, _, g_Cvar_HornVolumeLevel.FloatValue);
 
 				return;
 			}
 		}
 
-		// NER, respawn everyone
-		if (g_bNERenabled)
+		// Both teams had 1 player left, no soloers & no can be switched so respawn everyone
+		if (g_bNERenabled && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) == 1)
 		{
-			// If bot voted off & round didn't forcefully end let round end
+			// Let round end if bot voted off & round didn't forcefully end
 			if (g_iBot != GetBotClient())
 				return;
 
-			// Solo queue should be empty anyway, but it is good to clear it
-			g_soloQueue.Clear();
-			char buffer[512], namebuffer[64]; // Announcing soloers
-			
-			// NER randomizing & balancing teams
-			int iNERplayers[MAXPLAYERS + 1];
+			char buffer[512], namebuffer[64]; // keeping track of soloer names
+
 			int iTotalNERplayers = 0;
+			int iNERplayers[MAXPLAYERS + 1];
 
-			// Take 1 person out of solo to make sure round doesn't end
-			int iMarkedClient;
-			
+			// For solo
+			g_soloQueue.Clear();
 			int iWinner = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
+			int iMarkedSoloer = 0;
 
+			// Add to list to be reshuffled & respawned			
 			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
 			{
-				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer) || iPlayer == g_iBot)
+				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer))
 					continue;
 
 				int iLifeState = GetEntProp(iPlayer, Prop_Send, "m_lifeState");
 
-				// If player is NOT alive, (LIFE_ALIVE = 0), respawn them
-				if (iLifeState)
-				{
-					// Randomizing & balancing teams
+				// Winner & loser not in here
+				if (iLifeState && iPlayer != g_iBot)
+					// Mark soloers to avoid round end, otherwise add to shuffle list
 					if (!g_bSoloEnabled[iPlayer])
 						iNERplayers[iTotalNERplayers++] = iPlayer;
 					else
-						iMarkedClient = iPlayer; // This player will be forced out of solo if no other available players	
-				}
+						iMarkedSoloer = iPlayer;
 			}
 
+			// No players available, remove someone from solo
 			if (!iTotalNERplayers)
 			{
-				g_bSoloEnabled[iMarkedClient] = false;
-				CPrintToChat(iMarkedClient, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
+				// This client should never be 0, as our earlier check would've ended solo if 1v1
+				iNERplayers[iTotalNERplayers++] = iMarkedSoloer;
 
-				iNERplayers[iTotalNERplayers++] = iMarkedClient;
+				g_bSoloEnabled[iMarkedSoloer] = false;
+				CPrintToChat(iMarkedSoloer, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
 			}
 
-			
+			// If it's player v bot then respawn on 1 side, otherwise randomize
 			int iNewTeam;
-
 			if (g_iBot)
-				iNewTeam = AnalogueTeam(GetClientTeam(g_iBot)); // Spawning everyone on opposite team of bot
+				iNewTeam = AnalogueTeam(GetClientTeam(g_iBot));
 			else
-				iNewTeam = g_iLastDeadTeam; // Start spawning for the last dead team first to make sure round doesn't end
+				iNewTeam = g_iLastDeadTeam;
 
-			// Randomize & balance teams
+			// fisher yates shuffle & respawn, start respawning for last dead team to avoid round end
 			for (int i = iTotalNERplayers - 1; i >= 0; i--)
-			{
+			{						
 				int j = GetRandomInt(0, i);
 
 				ChangeClientTeam(iNERplayers[j], iNewTeam);
 				TF2_RespawnPlayer(iNERplayers[j]);
-
+				
 				if (!g_iBot)
 					iNewTeam = AnalogueTeam(iNewTeam);
-				
+					
 				iNERplayers[j] = iNERplayers[i];
 			}
 
-			// Sometimes players do not get respawned whilst they should be
+			// For some reason randomly some people do not get respawned, do not know if issue persists after refactoring (post 1.3.1)
+			// Keeping it in, as the issue is likely not resolved yet
 			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
 			{
 				if (!IsValidClient(iPlayer) || IsSpectator(iPlayer) || g_bSoloEnabled[iPlayer])
@@ -1160,43 +1159,72 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				}
 			}
 
-			// Winner last alive in team, can't solo
-			if (g_bSoloEnabled[iWinner] && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) == 1)
-			{
-				g_bSoloEnabled[iWinner] = false;
-				CPrintToChat(iWinner, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
-			}
+			// Red & blue players count changed, we do not switch the winner
+			int iRedTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Red)) - 1;
+			int iBlueTeamCount = GetTeamClientCount(view_as<int>(TFTeam_Blue)) - 1;
 
-			if (!g_bSoloEnabled[iWinner])
-				SetEntityHealth(iWinner, 175);
-				
-
+			// message all solo players that they weren't respawned & push back to queue
 			for (int iPlayer = 1; iPlayer <= MaxClients; iPlayer++)
 			{
 				if (!IsClientInGame(iPlayer) || IsSpectator(iPlayer))
 					continue;
-				
-				if (g_bSoloEnabled[iPlayer])
+
+				if (g_bSoloEnabled[iPlayer] && iPlayer != iWinner)
 				{
-					if (g_soloQueue.Empty)
-						Format(namebuffer, sizeof(namebuffer), "%N", iPlayer);
+					if ((GetClientTeam(iPlayer) == view_as<int>(TFTeam_Red) ? iRedTeamCount-- : iBlueTeamCount--) > 0)
+					{
+						if (g_soloQueue.Empty)
+							Format(namebuffer, sizeof(namebuffer), "%N", iPlayer);
+						else
+							Format(namebuffer, sizeof(namebuffer), ", %N", iPlayer);
+		
+						StrCat(buffer, sizeof(buffer), namebuffer);
+
+						g_soloQueue.Push(iPlayer);
+						CPrintToChat(iPlayer, "%t", "Dodgeball_Solo_NER_Notify_Not_Respawned");
+					}
 					else
-						Format(namebuffer, sizeof(namebuffer), ", %N", iPlayer);
-			
-					StrCat(buffer, sizeof(buffer), namebuffer);
+					{
+						g_bSoloEnabled[iPlayer] = false;
+						CPrintToChat(iPlayer, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
 
-					g_soloQueue.Push(iPlayer);
-					CPrintToChat(iPlayer, "%t", "Dodgeball_Solo_NER_Notify_Not_Respawned");
-
-					if (iPlayer == iWinner)
-						ForcePlayerSuicide(iWinner);
+						TF2_RespawnPlayer(iPlayer);
+					}
 				}
 			}
 
+			if (g_bSoloEnabled[iWinner])
+			{
+				// Winner is not only one alive in the team, so they can return to solo
+				if (GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) > 1)
+				{
+					if (g_soloQueue.Empty)
+						Format(namebuffer, sizeof(namebuffer), "%N", iWinner);
+					else
+						Format(namebuffer, sizeof(namebuffer), ", %N", iWinner);
+			
+					StrCat(buffer, sizeof(buffer), namebuffer);
+
+					g_soloQueue.Push(iWinner);
+					CPrintToChat(iWinner, "%t", "Dodgeball_Solo_NER_Notify_Not_Respawned");
+					ForcePlayerSuicide(iWinner);
+				}
+				// Can't solo, last in team
+				else
+				{
+					g_bSoloEnabled[iWinner] = false;
+					CPrintToChat(iWinner, "%t", "Dodgeball_Solo_Not_Possible_NER_Would_End");
+					SetEntityHealth(iWinner, 175);
+				}
+			}
+			else
+				SetEntityHealth(iWinner, 175);
+
+			// We have to respawn the last player 1 frame later, as they haven't died yet (since this is a PRE hook)
 			if (g_bSoloEnabled[iClient])
 				RequestFrame(RespawnPlayerCallback, 0);
 			else
-				RequestFrame(RespawnPlayerCallback, iClient); // We have to respawn the last player 1 frame later, as they haven't died yet (since this is a PRE hook)
+				RequestFrame(RespawnPlayerCallback, iClient); 
 
 			if (!g_soloQueue.Empty)
 				CPrintToChatAll("%t", "Dodgeball_Solo_Announce_All_Soloers", buffer);
@@ -2066,7 +2094,7 @@ int NumRocketsTargetting(int iClient)
 // ---- General utils -------------------------------
 bool IsValidClient(int iClient)
 {
-	if (iClient > 0)
+	if (iClient > 0 && iClient <= MaxClients)
 		return IsClientInGame(iClient) && IsPlayerAlive(iClient);
 	return false;
 }
