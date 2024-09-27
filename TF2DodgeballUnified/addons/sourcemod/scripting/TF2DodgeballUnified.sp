@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.6.1"
+#define PLUGIN_VERSION     "1.6.2"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -1046,26 +1046,21 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 	if (GetTeamAliveCount(g_iLastDeadTeam) == 1)
 	{
 
-		// Switch people's team until 1 player left if NER
-		if ((g_bNERenabled || g_bFFAenabled) && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) > 1)
+		// Giving priority to solo players, as otherwise it is too boring with NER or FFA
+		if (!g_soloQueue.Empty)
 		{
-			int iRandomOpponent = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
-			g_iOldTeam[iRandomOpponent] = AnalogueTeam(g_iLastDeadTeam);
-		
-			ChangeAliveClientTeam(iRandomOpponent, g_iLastDeadTeam);
-
-			return;
-		}
-		// If no one can be switched (or NER not enabled) respawn solo players
-		else if (!g_soloQueue.Empty)
-		{
-			int iSoloer = g_soloQueue.Pop();
+			int iSoloer;
 
 			// Handles people who don't have solo enabled anymore, but are still left in queue
-			while (!g_bSoloEnabled[iSoloer] && !g_soloQueue.Empty && IsSpectator(iSoloer))
+			while (!g_soloQueue.Empty)
+			{
 				iSoloer = g_soloQueue.Pop();
-			
-			if (g_bSoloEnabled[iSoloer] && !IsSpectator(iSoloer))
+
+				if (g_bSoloEnabled[iSoloer] && !IsSpectator(iSoloer) && !IsPlayerAlive(iSoloer))
+					break;
+			}
+				
+			if (g_bSoloEnabled[iSoloer] && !IsSpectator(iSoloer) && !IsPlayerAlive(iSoloer))
 			{
 				// Respawn solo player
 				ChangeClientTeam(iSoloer, g_iLastDeadTeam);
@@ -1076,6 +1071,16 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				return;
 			}
 		}
+		// Switch people's team until 1 player left if NER
+		else if ((g_bNERenabled || g_bFFAenabled) && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) > 1)
+		{
+			int iRandomOpponent = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
+			g_iOldTeam[iRandomOpponent] = AnalogueTeam(g_iLastDeadTeam);
+		
+			ChangeAliveClientTeam(iRandomOpponent, g_iLastDeadTeam);
+
+			return;
+		}		
 
 		// Both teams had 1 player left, no soloers & no can be switched so respawn everyone
 		if (g_bNERenabled && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) == 1)
