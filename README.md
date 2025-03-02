@@ -55,4 +55,4 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 # Credits
 1. This plugin is mainly based off of a modified version of YADP modified by x07x08, Silorak & Tolfx, many subplugins from there were also integrated into this plugin. | [Link](https://github.com/x07x08/TF2-Dodgeball-Modified/)
 2. The original YADB plugin by Damizean. | [Link](https://forums.alliedmods.net/showthread.php?t=134503)
-3. Dodgeball Redux by Classic | [Link] (https://forums.alliedmods.net/showthread.php?p=2226728)
+3. Dodgeball Redux by Classic | [Link](https://forums.alliedmods.net/showthread.php?p=2226728)
