@@ -16,7 +16,6 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 - Nukes are completely removed.
 
 # Added features
-- Maximum rocket velocity has been uncapped. (in dodgeball_enable.cfg, setup time & round ending time are also reduced by default now)
 - Rocket speed, turnrate and damage are now governed by formula's.
 - Configs can be loaded more easily from within the game. ("sm_loadconfig")
 - More wavetypes have been added aside from vertical waves. (horizontal & circular)
@@ -25,6 +24,7 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 - A push scale has been introduced to airblast players further away. (if airblasting players is enabled)
 - Airblast delay can now be changed in the config. (Taken from Swagville).
 - Never ending rounds. (Taken from Crimson Dynasty).
+- Added Supershot as a subplugin. (Taken from Dodgeball Redux).
 - Added mid-air spiking.
 - Added soft antisteal
 
@@ -48,8 +48,11 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 
 # Convars
 ```ini
-  NER_volume_level "0.75" - Volume level of the horn played when respawning players
+  NER_volume_level "0.75" - Volume level of the horn played when respawning players.
+  NER_BotDebug "0" - Makes it so that NER plugin ignores bots & view them as players.
+  
 ```
 # Credits
 1. This plugin is mainly based off of a modified version of YADP modified by x07x08, Silorak & Tolfx, many subplugins from there were also integrated into this plugin. | [Link](https://github.com/x07x08/TF2-Dodgeball-Modified/)
 2. The original YADB plugin by Damizean. | [Link](https://forums.alliedmods.net/showthread.php?t=134503)
+3. Dodgeball Redux by Classic | [Link] (https://forums.alliedmods.net/showthread.php?p=2226728)

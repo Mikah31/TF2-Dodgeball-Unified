@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.6.2"
+#define PLUGIN_VERSION     "1.6.3"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -61,6 +61,7 @@ ConVar g_Cvar_HornVolumeLevel;
 
 // Speedometer hud
 char g_hHudText[225]; // 225 is character limit for hud text
+bool g_bCurving; // Longer text length so it is uncentered
 Handle g_hHudTimer;
 Handle g_hMainHudSync;
 
@@ -105,7 +106,7 @@ public void OnPluginStart()
 	// NER
 	RegAdminCmd("sm_ner", CmdToggleNER, ADMFLAG_CONFIG, "Forcefully toggle NER (Never ending rounds)");
 	RegConsoleCmd("sm_votener", CmdVoteNER, "Vote to toggle NER");
-	g_Cvar_HornVolumeLevel = CreateConVar("NER_volume_level", "0.75", "Volume level of the horn played when respawning players", _, true, 0.0, true, 1.0);
+	g_Cvar_HornVolumeLevel = CreateConVar("NER_volume_level", "0.75", "Volume level of the horn played when respawning players.", _, true, 0.0, true, 1.0);
 	g_Cvar_SeeBotsAsPlayers = CreateConVar("NER_BotDebug", "0", "Makes it so that NER plugin ignores bots & view them as players.", _, true, 0.0, true, 1.0);
 
 	// Solo toggle
@@ -135,6 +136,7 @@ public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] strError, int iE
 	CreateNative("TFDB_ToggleFFA", Native_ToggleFFA);
 	CreateNative("TFDB_IsNERenabled", Native_IsNERenabled);
 	CreateNative("TFDB_ToggleNER", Native_ToggleNER);
+	CreateNative("TFDB_HasRoundStarted", Native_HasRoundStarted);
 
 	SetupForwards();
 	
@@ -365,7 +367,7 @@ public void OnGameFrame()
 				rocket.fTimeInOrbit += GetTickInterval();
 
 			// Wave stuff, we do not wave whilst within certain range
-			if (currentConfig.iWavetype && rocket.iDeflectionCount && rocket.RangeToTarget() < WAVE_RANGE)
+			if (currentConfig.iWavetype && rocket.iDeflectionCount && rocket.RangeToTarget() > WAVE_RANGE)
 			{
 				float fDistanceToPlayer = GetVectorDistance(fPlayerPosition, fRocketPosition);
 				
@@ -608,9 +610,10 @@ void CreateRocket(int iSpawnerEntity, int iTeam)
 
 	SDKHook(rocket.iEntity, SDKHook_StartTouch, OnStartTouch);
 
-	Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
-
 	Forward_OnRocketCreated(g_rockets.Length, rocket);
+
+	Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
+	g_bCurving = false;
 
 	g_rockets.PushArray(rocket);
 	DispatchSpawn(rocket.iEntity);
@@ -734,13 +737,19 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 	rocket.bHasTarget = false;
 	rocket.bRecentlyReflected = true; // We set our rocket.fTimeLastDeflect in sync with OnGameFrame for dragging
 
+	Forward_OnRocketDeflect(iIndex, rocket);
+
 	// Updating hud text, reflect 'curving' of the rocket aswell
 	if (rocket.fSpeed > currentConfig.fMaxVelocity)
+	{
 		Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer_MaxSpeed", rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity, rocket.SpeedMpH());
+		g_bCurving = true;
+	}
 	else
+	{
 		Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
-
-	Forward_OnRocketDeflect(iIndex, rocket);
+		g_bCurving = false;
+	}
 
 	g_rockets.SetArray(iIndex, rocket);
 }
@@ -870,7 +879,10 @@ public Action RocketSpeedometer(Handle hTimer, any aData)
 	{
 		if (!IsClientInGame(iClient)) continue;
 
-		SetHudTextParams(0.375, 0.925, 0.5, 255, 255, 255, 255, 0, 0.0, 0.12, 0.12);			
+		if (g_bCurving)
+			SetHudTextParams(0.35, 0.925, 0.5, 255, 255, 255, 255, 0, 0.0, 0.12, 0.12);
+		else
+			SetHudTextParams(0.38, 0.925, 0.5, 255, 255, 255, 255, 0, 0.0, 0.12, 0.12);
 		ShowSyncHudText(iClient, g_hMainHudSync, g_hHudText);
 	}
 
@@ -1405,7 +1417,7 @@ bool ParseConfig(char[] strConfigFile = "general.cfg", bool bUpdateGameplayConfi
 	}
 	
 	PopulateRocketSpawners();
-	Forward_OnRocketsConfigExecuted(strConfigFile, currentConfig);
+	Forward_OnRocketsConfigExecuted(strFileName, currentConfig);
 
 	// If FFA, NER or solo is not allowed anymore disable them
 	if (!currentConfig.bFFAallowed && g_bFFAenabled)
@@ -1464,6 +1476,9 @@ public Action CmdLoadConfig(int iClient, int iArgs)
 		if (strConfigFile[0] == '.' || strConfigFile[0] == '\'' || strConfigFile[0] == '\\' || strConfigFile[0] == '/') // Stop some ..\ or "C:\.." exploration attempts
 			return Plugin_Handled;
 		
+		if (StrContains(strConfigFile, ".cfg", false) == -1)
+			StrCat(strConfigFile, sizeof(strConfigFile), ".cfg");
+
 		if (ParseConfig(strConfigFile))
 		{
 			CReplyToCommand(iClient, "%t", "Dodgeball_Config_Loading_New_Config", strConfigFile);
@@ -2452,4 +2467,9 @@ public any Native_ToggleNER(Handle hPlugin, int iNumParams)
 	ToggleNER();
 
 	return 0;
+}
+
+public any Native_HasRoundStarted(Handle hPlugin, int iNumParams)
+{
+	return g_bRoundStarted;
 }

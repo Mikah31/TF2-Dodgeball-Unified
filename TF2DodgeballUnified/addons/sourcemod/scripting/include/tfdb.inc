@@ -374,6 +374,13 @@ native bool TFDB_IsNERenabled();
  */
 native void TFDB_ToggleNER();
 
+/**
+ * Check is the round has started
+ * 
+ * @return		True if started, false otherwise
+ */
+native void TFDB_HasRoundStarted();
+
 public SharedPlugin __pl_TFDB =
 {
 	name = "tfdb",
@@ -402,5 +409,6 @@ public void __pl_TFDB_SetNTVOptional()
 	MarkNativeAsOptional("TFDB_ToggleFFA");
 	MarkNativeAsOptional("TFDB_IsNERenabled");
 	MarkNativeAsOptional("TFDB_ToggleNER");
+	MarkNativeAsOptional("TFDB_HasRoundStarted");
 }
 #endif
