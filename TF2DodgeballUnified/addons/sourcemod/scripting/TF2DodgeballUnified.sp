@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.6.3"
+#define PLUGIN_VERSION     "1.7.0"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -301,6 +301,14 @@ public void OnGameFrame()
 		if (!rocket.bHasTarget && fTimeSinceLastDeflect >= currentConfig.fDragTimeMax)
 		{
 			rocket.iTarget = SelectTarget(rocket.iTeam, rocket.iOwner, fRocketPosition, rocket.fDirection);
+
+			// Rocket does not have a valid target, remove it (a situation where this is triggered should not happen)
+			if (rocket.iTarget < 0)
+			{
+				RemoveEdict(rocket.iEntity);
+				g_rockets.Erase(n);
+				continue;
+			}
 
 			Forward_OnRocketNewTarget(n, rocket);
 
@@ -618,6 +626,9 @@ void CreateRocket(int iSpawnerEntity, int iTeam)
 	g_rockets.PushArray(rocket);
 	DispatchSpawn(rocket.iEntity);
 
+	// Distribute rockets (when multirocket), will also distribute in 1v1 modes/pvb
+	g_iLastDeadTeam = AnalogueTeam(g_iLastDeadTeam);
+
 	rocket.EmitRocketSound(SOUND_ALERT);
 	rocket.EmitRocketSound(SOUND_SPAWN, rocket.iTeam == view_as<int>(TFTeam_Blue) ? g_iBlueSpawnerEntity : g_iRedSpawnerEntity);
 }
@@ -763,8 +774,9 @@ int SelectTarget(int iTeam, int iOwner, float fPosition[3], float fDirection[3])
 	for (int iClient = 1; iClient <= MaxClients; iClient++)
 	{
 		if (!IsValidClient(iClient)) continue;
-		if (iTeam == GetClientTeam(iClient)) continue;	// Selecting a target NOT on iTeam
+		if (iTeam == GetClientTeam(iClient)) continue;	// Selecting a target NOT on iTeam, where iTeam is the rockets team
 		if (iOwner == iClient) continue;				// Do not target owner (for FFA rockets)
+		if (currentConfig.iPlayerCountPerRocket[0] && currentConfig.bOneRocketPerTarget && NumRocketsTargetting(iClient) > 0) continue; // Do not target a person who has a rocket targetting them already
 
 		static float fClientPosition[3]; GetClientEyePosition(iClient, fClientPosition);
 		static float fDirectionToClient[3]; MakeVectorFromPoints(fPosition, fClientPosition, fDirectionToClient);
@@ -860,8 +872,31 @@ public Action ManageRockets(Handle hTimer, any aData)
 
 	RemoveInvalidRockets();
 
+	int iRocketCount = 1;
+
+	// Multi rocket, depending on player count we have more or less rockets
+	if (currentConfig.iPlayerCountPerRocket[0])
+	{
+		int iAliveBlue = GetTeamAliveCount(view_as<int>(TFTeam_Blue));
+		int iAliveRed = GetTeamAliveCount(view_as<int>(TFTeam_Red));
+
+		int iLowestPlayerCountAlive = iAliveBlue < iAliveRed ? iAliveBlue : iAliveRed;
+
+		for (int i = 0; i < 16; i++)
+		{
+			if (currentConfig.iPlayerCountPerRocket[i] && currentConfig.iPlayerCountPerRocket[i] <= iLowestPlayerCountAlive)
+				iRocketCount++;
+			else
+				break; // Array is sorted so we can break out early
+		}
+		
+		// This only happens if config is misconfigured
+		if (currentConfig.bOneRocketPerTarget)
+			iRocketCount = iRocketCount > iLowestPlayerCountAlive ? iLowestPlayerCountAlive : iRocketCount;
+	}
+
 	// Spawn new rockets if needed
-	if (g_rockets.Length < currentConfig.iMaxRockets && g_fLastRocketSpawned + currentConfig.fSpawnInterval < GetGameTime())
+	if (g_rockets.Length < iRocketCount && g_fLastRocketSpawned + currentConfig.fSpawnInterval < GetGameTime())
 	{
 		CreateRocket(g_iLastDeadTeam == view_as<int>(TFTeam_Blue) ? g_iBlueSpawnerEntity : g_iRedSpawnerEntity, g_iLastDeadTeam);
 		g_fLastRocketSpawned = GetGameTime();
@@ -1378,7 +1413,29 @@ bool ParseConfig(char[] strConfigFile = "general.cfg", bool bUpdateGameplayConfi
 	if (bUpdateGameplayConfig)
 	{
 		// Rocket spawning
-		cfg.GetInt("gameplay.max rockets", currentConfig.iMaxRockets);
+
+		// Multirocket, spawning rockets per (alive) player count
+		cfg.Get("gameplay.player count per rocket", strBuffer, sizeof(strBuffer));
+		ReplaceString(strBuffer, sizeof(strBuffer), " ", "");
+
+		// Clear previous array, we cannot set first index to 0 as we do not know what comes after ("1,2,3"->"2,2", 3 is not cleared)
+		for (int i = 0; i < 16; i++) // 16 is the max amount of rockets, and size of array
+			currentConfig.iPlayerCountPerRocket[i] = 0;
+
+		// Writing our input string "1, 2" to an int array
+		if (strBuffer[0] != '\0')
+		{
+			char strExploded[16][4]; 
+			int iLength = ExplodeString(strBuffer, ",", strExploded, sizeof(strExploded), sizeof(strExploded[]));
+
+			for (int n = 0; n < iLength; n++)
+				currentConfig.iPlayerCountPerRocket[n] = StringToInt(strExploded[n]);
+			
+			// Our array is filled with 0's as no data, so only sort over length used
+			SortIntegers(currentConfig.iPlayerCountPerRocket, iLength, Sort_Ascending); // iLength is capped at sizeof(strExploded)
+		}
+
+		cfg.GetBool("gameplay.one rocket per person", currentConfig.bOneRocketPerTarget);
 		cfg.GetFloat("gameplay.rocket spawn interval", currentConfig.fSpawnInterval);
 
 		// Airblast pushback
@@ -2051,7 +2108,7 @@ void RemoveInvalidRockets()
 			
 			g_rockets.Erase(n--); // g_rockets.Length changes
 		}
-		else if (!IsValidClient(rocket.iOwner) || !IsValidClient(rocket.iTarget)) // Target / owner became invalid (left game or died), could also prevent soft anti steal, but rare cases
+		else if (!IsClientInGame(rocket.iOwner) || !IsValidClient(rocket.iTarget)) // Target / owner became invalid (left game or died), could also prevent soft anti steal, but rare cases
 		{
 			RemoveEdict(rocket.iEntity);
 			g_rockets.Erase(n--);
@@ -2121,7 +2178,7 @@ bool IsValidClient(int iClient)
 
 bool IsSpectator(int iClient)
 {
-	return GetClientTeam(iClient) == view_as<int>(TFTeam_Spectator);
+	return GetClientTeam(iClient) == view_as<int>(TFTeam_Spectator) || GetClientTeam(iClient) == view_as<int>(TFTeam_Unassigned);
 }
 
 float Clamp(float fVal, float fMin, float fMax)

@@ -110,7 +110,8 @@ enum struct TFDBConfig
 	float fTurningDelay;
 
 	// Rocket spawning
-	int iMaxRockets;
+	int iPlayerCountPerRocket[16]; // 16 is max amount of rockets
+	bool bOneRocketPerTarget;
 	float fSpawnInterval;
 	
 	// Bouncing
@@ -124,7 +125,6 @@ enum struct TFDBConfig
 	bool bStolenRocketsDoDamage;
 	bool bAnnounceSteals;
 	float fWallingDistance;
-	
 	
 	// Orbitting
 	float fDelayTime; // Delay time before rocket starts speeding up
