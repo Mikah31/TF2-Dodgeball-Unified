@@ -135,7 +135,8 @@ enum struct TFDBConfig
 	float fPushScale;
 
 	// Airblasting delay
-	float fAirblastDelay;
+	float fAirblastDelayMult;
+	bool bTimedAirblastDelay;
 
 	// Bools
 	bool bSpeedometer;

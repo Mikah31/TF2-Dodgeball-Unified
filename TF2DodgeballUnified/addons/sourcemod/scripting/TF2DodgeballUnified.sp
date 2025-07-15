@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.7.0"
+#define PLUGIN_VERSION     "1.7.1"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -50,9 +50,13 @@ bool g_bFFAenabled;
 float g_fNERvoteTime;
 bool g_bNERenabled;
 
+// Respawn protection, NER & Solo
+float g_fLastRespawned; 
+ConVar g_Cvar_RespawnProtection;
+
 int g_iBot; // Keeping track of dodgeball bot (for NER)
 
-int g_iOldTeam[MAXPLAYERS + 1];
+int g_iOldTeam[MAXPLAYERS + 1]; // Resetting to old team for FFA
 
 Address g_pMyWearables; // Fix for wearables' colours not changing
 
@@ -66,7 +70,12 @@ Handle g_hHudTimer;
 Handle g_hMainHudSync;
 
 // Stealing
-int g_iSteals [MAXPLAYERS + 1];
+int g_iSteals[MAXPLAYERS + 1];
+
+// Airblast delay (timed)
+float g_fTimeNextAirblast[MAXPLAYERS + 1];
+bool g_bHoldingAirblast[MAXPLAYERS + 1];
+bool g_bResetAirblastDelay[MAXPLAYERS + 1];
 
 // Array of rocket structs & config struct
 ArrayList g_rockets;
@@ -108,6 +117,7 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_votener", CmdVoteNER, "Vote to toggle NER");
 	g_Cvar_HornVolumeLevel = CreateConVar("NER_volume_level", "0.75", "Volume level of the horn played when respawning players.", _, true, 0.0, true, 1.0);
 	g_Cvar_SeeBotsAsPlayers = CreateConVar("NER_BotDebug", "0", "Makes it so that NER plugin ignores bots & view them as players.", _, true, 0.0, true, 1.0);
+	g_Cvar_RespawnProtection = CreateConVar("NER_RespawnProtection", "1.0", "Amount of time that a player is protected for after respawning.", _, true, 0.0);
 
 	// Solo toggle
 	RegConsoleCmd("sm_solo", CmdSolo, "Toggle solo mode");
@@ -208,6 +218,11 @@ void EnableDodgeball()
 	// Parsing rocket configs
 	ParseConfig();
 
+	// Respawn protection NER & Solo
+	for (int i = 1; i <= MaxClients; i++)
+		if (IsClientInGame(i))
+			SDKHook(i, SDKHook_OnTakeDamage, OnClientTakesDamage);
+
 	g_bEnabled = true;
 }
 
@@ -265,7 +280,7 @@ public void OnGameFrame()
 	}
 	
 	Rocket rocket;
-	float currentTime = GetGameTime();
+	float fCurrentTime = GetGameTime();
 
 	// Go over each rocket in ArrayList
 	for (int n = 0; n < g_rockets.Length; n++)
@@ -278,22 +293,22 @@ public void OnGameFrame()
 		// If we had set fTimeLastDeflect in OnObjectDeflected it would be out of sync with OnGameFrame, resulting in deflection delays
 		if (rocket.bRecentlyReflected)
 		{
-			rocket.fTimeLastDeflect = currentTime; 
+			rocket.fTimeLastDeflect = fCurrentTime; 
 			rocket.bRecentlyReflected = false;
 		}
 
 		// For creating crawling downspikes
 		if (rocket.bRecentlyBounced)
 		{
-			rocket.fTimeLastBounce = currentTime;
+			rocket.fTimeLastBounce = fCurrentTime;
 			rocket.bRecentlyBounced = false;
 		}
 		
-		float fTimeSinceLastDeflect = currentTime - rocket.fTimeLastDeflect;
-		float fTimeSinceLastBounce = currentTime - rocket.fTimeLastBounce;
+		float fTimeSinceLastDeflect = fCurrentTime - rocket.fTimeLastDeflect;
+		float fTimeSinceLastBounce = fCurrentTime - rocket.fTimeLastBounce;
 
 		// The extra factor is to vary the spiking length, we should probably give control over this in config
-		float fTimeSinceLastTurn = (currentTime - rocket.fTimeLastTurn) + (GetRandomFloat(-currentConfig.fSpikingTime*0.25, currentConfig.fSpikingTime*0.25));
+		float fTimeSinceLastTurn = (fCurrentTime - rocket.fTimeLastTurn) + (GetRandomFloat(-currentConfig.fSpikingTime*0.25, currentConfig.fSpikingTime*0.25));
 
 		static float fRocketPosition[3]; GetEntPropVector(rocket.iEntity, Prop_Data, "m_vecOrigin", fRocketPosition);
 
@@ -367,7 +382,7 @@ public void OnGameFrame()
 				}
 
 				// We randomize spiking timing to vary length of spikes
-				rocket.fTimeLastTurn = currentTime;
+				rocket.fTimeLastTurn = fCurrentTime;
 			}
 
 			// In orbit increase delay timer
@@ -960,7 +975,7 @@ void SetAttributes(int iSoloer = 0)
 
 		iWeapon = GetEntPropEnt(iSoloer, Prop_Data, "m_hActiveWeapon");
 
-		TF2Attrib_SetByDefIndex(iWeapon, 256, currentConfig.fAirblastDelay);
+		TF2Attrib_SetByDefIndex(iWeapon, 256, currentConfig.fAirblastDelayMult);
 		// They are solo, so we do not have to include soft antisteal
 
 		if (currentConfig.bPushPrevention)
@@ -991,10 +1006,10 @@ void SetAttributes(int iSoloer = 0)
 		iWeapon = GetEntPropEnt(iClient, Prop_Data, "m_hActiveWeapon");
 
 		// Attribute 256 is "mult airblast refire time", which governs airblast delays (https://wiki.teamfortress.com/wiki/List_of_item_attributes)
-		TF2Attrib_SetByDefIndex(iWeapon, 256, currentConfig.fAirblastDelay);
+		TF2Attrib_SetByDefIndex(iWeapon, 256, currentConfig.fAirblastDelayMult);
 
 		// Soft antisteal if stealing is disabled
-		if (!currentConfig.iMaxSteals && currentConfig.bSoftAntiSteal) // if 0
+		if (!currentConfig.iMaxSteals && currentConfig.bSoftAntiSteal) // All stealing is disabled
 		{
 			CPrintToChat(iClient, "%t", "Dodgeball_Soft_Stealing_Not_Enabled");
 			TF2Attrib_SetByDefIndex(iWeapon, 826, 1.0); // Attrib 826 : airblast_deflect_projectiles_disabled
@@ -1021,14 +1036,66 @@ public void OnClientPutInServer(int iClient)
 	g_iSteals[iClient] = 0;
 	g_iOldTeam[iClient] = 0;
 	g_bSoloEnabled[iClient] = false;
+
+	if (iClient > 0 && IsClientInGame(iClient))
+		SDKHook(iClient, SDKHook_OnTakeDamage, OnClientTakesDamage);
 }
 
-// Removing flamethrower attack
 public Action OnPlayerRunCmd(int iClient, int &iButtons)
 {
-	if (g_bEnabled) iButtons &= ~IN_ATTACK;
+	if (!g_bEnabled) return Plugin_Continue;
+
+	// Removing flamethrower attack
+	iButtons &= ~IN_ATTACK;
+
+	// Timed airblasts
+	if (currentConfig.bTimedAirblastDelay && !g_bResetAirblastDelay[iClient])
+	{
+		if (iButtons & IN_ATTACK2)
+		{
+			float fCurrentTime = GetGameTime();
+
+			// Airblast held too long, or attempted to airblast too early
+			if ((g_bHoldingAirblast[iClient] &&  g_fTimeNextAirblast[iClient] < fCurrentTime + GetTickInterval() * 8) // Holding airblast for too long, 8 ticks of buffer
+				|| (!g_bHoldingAirblast[iClient] && g_fTimeNextAirblast[iClient] > fCurrentTime)) // Attempted to airblast too early
+			{
+				if (!IsValidClient(iClient) || IsFakeClient(iClient)) return Plugin_Continue;
+
+				// Resetting airblast to default delay, this should always be longer (as we shouldnt use timed airblast when increasing the delay)
+				g_fTimeNextAirblast[iClient] += 0.75 - currentConfig.fAirblastDelayMult * 0.75;
+
+				int iWeapon = GetEntPropEnt(iClient, Prop_Data, "m_hActiveWeapon");
+				SetEntPropFloat(iWeapon, Prop_Send, "m_flNextSecondaryAttack", g_fTimeNextAirblast[iClient]);
+
+				g_bResetAirblastDelay[iClient] = true; // To not reset multiple times
+			}
+		}
+		else
+		{
+			g_bHoldingAirblast[iClient] = false;
+		}
+	}
 
 	return Plugin_Continue;
+}
+
+// Detecting when airblasting happens, which is required for timed airblast delay
+public void OnPlayerRunCmdPost(int iClient, int iButtons)
+{
+	if (!g_bEnabled || !currentConfig.bTimedAirblastDelay) return;
+	if (!(iButtons & IN_ATTACK2)) return;
+	if (!IsValidClient(iClient)) return;
+
+	// This method is more reliable than by keeping track of airblasts when IN_ATTACK2 was held
+	int iWeapon = GetEntPropEnt(iClient, Prop_Data, "m_hActiveWeapon");
+	float fNextAirblast = GetEntPropFloat(iWeapon, Prop_Send, "m_flNextSecondaryAttack");
+
+	if (fNextAirblast != g_fTimeNextAirblast[iClient])
+	{
+		g_fTimeNextAirblast[iClient] = fNextAirblast;
+		g_bHoldingAirblast[iClient] = true;
+		g_bResetAirblastDelay[iClient] = false;
+	}
 }
 
 // Removing all slots except for flamethrower
@@ -1066,7 +1133,6 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 	g_iLastDeadTeam = GetClientTeam(iClient);
 
 	g_iSteals[iClient] = 0;
-
 	int iInflictor = hEvent.GetInt("inflictor_entindex");
 	int iIndex = FindRocketIndexByEntity(iInflictor);
 
@@ -1112,13 +1178,16 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				// Respawn solo player
 				ChangeClientTeam(iSoloer, g_iLastDeadTeam);
 				TF2_RespawnPlayer(iSoloer);
+				SetAttributes(iSoloer);
+
+				g_fLastRespawned = GetGameTime();
 
 				EmitSoundToClient(iSoloer, SOUND_NER_RESPAWNED, _, _, _, _, g_Cvar_HornVolumeLevel.FloatValue);
 
 				return;
 			}
 		}
-		// Switch people's team until 1 player left if NER
+		// Switch people's team until 1 player left if NER or FFA
 		else if ((g_bNERenabled || g_bFFAenabled) && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) > 1)
 		{
 			int iRandomOpponent = GetTeamRandomAliveClient(AnalogueTeam(g_iLastDeadTeam));
@@ -1273,6 +1342,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 				SetEntityHealth(iWinner, 175);
 
 			// We have to respawn the last player 1 frame later, as they haven't died yet (since this is a PRE hook)
+			g_fLastRespawned = GetGameTime();
 			if (g_bSoloEnabled[iClient])
 				RequestFrame(RespawnPlayerCallback, 0);
 			else
@@ -1297,6 +1367,17 @@ void RespawnPlayerCallback(any aData)
 	}
 	
 	SetAttributes(); // Otherwise player collisions are not disabled (weapon attributes should remain the same if loadout wasn't changed)
+}
+
+public Action OnClientTakesDamage(int victim, int& attacker, int& inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3])
+{
+	// Respawn protection
+	if (GetGameTime() < g_fLastRespawned + g_Cvar_RespawnProtection.FloatValue && IsValidClient(victim))
+	{
+		damage = 0.0;
+		return Plugin_Changed;
+	}
+	return Plugin_Continue;
 }
 
 public void OnRoundEnd(Event hEvent, char[] strEventName, bool bDontBroadcast)
@@ -1447,8 +1528,9 @@ bool ParseConfig(char[] strConfigFile = "general.cfg", bool bUpdateGameplayConfi
 		cfg.GetBool("gameplay.rocket speedometer", currentConfig.bSpeedometer);
 		cfg.GetFloat("gameplay.delay time", currentConfig.fDelayTime);
 
-		cfg.GetFloat("gameplay.airblast delay", currentConfig.fAirblastDelay);
-		currentConfig.fAirblastDelay /= 0.75 ; // 0.75 is normal airblast delay, the attribute is a multiplier, so we convert to multiplier
+		cfg.GetFloat("gameplay.airblast delay", currentConfig.fAirblastDelayMult);
+		currentConfig.fAirblastDelayMult /= 0.75 ; // 0.75 is normal airblast delay, the attribute is a multiplier, so we convert to multiplier
+		cfg.GetBool("gameplay.timed airblast delay", currentConfig.bTimedAirblastDelay);
 
 		// Stealing
 		cfg.GetInt("gameplay.max steals", currentConfig.iMaxSteals);

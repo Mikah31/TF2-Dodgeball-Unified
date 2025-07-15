@@ -50,7 +50,7 @@ Copy the contents of `TF2DodgeballUnified` inside of `tf`.
 ```ini
   NER_volume_level "0.75" - Volume level of the horn played when respawning players.
   NER_BotDebug "0" - Makes it so that NER plugin ignores bots & view them as players.
-  
+  NER_RespawnProtection "1.0" - Amount of time that a player is protected for after respawning.
 ```
 # Credits
 1. This plugin is mainly based off of a modified version of YADP modified by x07x08, Silorak & Tolfx, many subplugins from there were also integrated into this plugin. | [Link](https://github.com/x07x08/TF2-Dodgeball-Modified/)
