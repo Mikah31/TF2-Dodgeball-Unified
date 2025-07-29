@@ -14,7 +14,7 @@
 	{
 		// 1:Name of person who died, 2:Admin speed, 3:Speed MpH, 4:Deflection count, 5:Curving factor
 		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f}"
-		"en"		"{olive}[TFDB]{default} {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH at {red}{4}{default} deflections."
+		"en"		"{olive}[TFDB] {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH at {red}{4}{default} deflections."
 	}
 
 	"Dodgeball_Death_Message_MaxSpeed"
@@ -22,7 +22,7 @@
 		// 1:Name of person who died, 2:Admin speed, 3:(actual)Speed MpH, 4:Deflection count, 5:Curving factor, 6:(fake)Speed MpH
 		// Difference 3 & 6 -> 3 is limited by maxvelocity, 6 is not
 		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f},{6:.0f}"
-		"en"		"{olive}[TFDB]{default} {burlywood}{1}{default} died to a rocket travelling at {red}{3}{default} MpH. Curve factor: {red}{5}{default} at {red}{4}{default} deflections."
+		"en"		"{olive}[TFDB] {burlywood}{1}{default} died to a rocket travelling at {red}{3}{default} MpH. Curve factor: {red}{5}{default} at {red}{4}{default} deflections."
 	}
 
 	"Dodgeball_Hud_Speedometer"
@@ -64,7 +64,7 @@
 	{
 		// 1:Name of person delaying
 		"#format"	"{1:N}"
-		"en"		"{olive}[TFDB]{default} {darkorange}{1}{default} is delaying; the rocket will now speed up."
+		"en"		"{olive}[TFDB] {darkorange}{1}{default} is delaying; the rocket will now speed up."
 	}
 
 	"Dodgeball_Steal_Warning_Client"
@@ -78,7 +78,7 @@
 	{
 		// 1:Name of person who stole rocket, 2:Person whose rocket was stolen
 		"#format"	"{1:N},{2:N}"
-		"en"		"{olive}[TFDB]{default} {darkorange}{1}{default} stole {steelblue}{2}{default}'s rocket!"
+		"en"		"{olive}[TFDB] {darkorange}{1}{default} stole {steelblue}{2}{default}'s rocket!"
 	}
 
 	"Dodgeball_Steal_Slay_Client"
@@ -107,14 +107,14 @@
 	{
 		// 1:Name of person that can not steal anymore
 		"#format"	"{1:N}"
-		"en"		"{olive}[TFDB]{default} {darkorange}{1}{default} can no longer steal rockets."
+		"en"		"{olive}[TFDB] {darkorange}{1}{default} can no longer steal rockets."
 	}
 
 	"Dodgeball_Steal_Announce_Slay_All"
 	{
 		// 1:Name of person slain for stealing
 		"#format"	"{1:N}"
-		"en"		"{olive}[TFDB]{default} {darkorange}{1}{default} was slain for stealing rockets."
+		"en"		"{olive}[TFDB] {darkorange}{1}{default} was slain for stealing rockets."
 	}
 
 	"Dodgeball_Vote_Conflict"
@@ -131,22 +131,22 @@
 
 	"Dodgeball_FFAVote_Failed"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}FFA{default} vote {red}failed{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}FFA{default} vote {red}failed{default}."
 	}
 
 	"Dodgeball_FFA_Enabled"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}FFA{default} is now {community}enabled{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}FFA{default} is now {community}enabled{default}."
 	}
 
 	"Dodgeball_FFA_Disabled"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}FFA{default} is now {red}disabled{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}FFA{default} is now {red}disabled{default}."
 	}
 
 	"Dodgeball_FFA_Disabled_By_New_Config"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}FFA{default} has been {red}disabled{default} by the new configuration."
+		"en"		"{olive}[TFDB] {darkmagenta}FFA{default} has been {red}disabled{default} by the new configuration."
 	}
 
 	"Dodgeball_NERVote_Cooldown"
@@ -158,42 +158,42 @@
 
 	"Dodgeball_NERVote_Failed"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}NER{default} vote {red}failed{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}NER{default} vote {red}failed{default}."
 	}
 
 	"Dodgeball_NER_Enabled"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}NER{default} is now {community}enabled{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}NER{default} is now {community}enabled{default}."
 	}
 
 	"Dodgeball_NER_Forcefully_Enabled"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}NER{default} is now forcefully {community}enabled{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}NER{default} is now forcefully {community}enabled{default}."
 	}
 
 	"Dodgeball_NER_Disabled"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}NER{default} is now {red}disabled{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}NER{default} is now {red}disabled{default}."
 	}
 
 	"Dodgeball_NER_Disabled_By_New_Config"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}NER{default} has been {red}disabled{default} by the new configuration."
+		"en"		"{olive}[TFDB] {darkmagenta}NER{default} has been {red}disabled{default} by the new configuration."
 	}
 
 	"Dodgeball_NER_Not_Enough_Players_Disabled"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}NER{default} is now {red}disabled{default} due to the insufficient amount of players."
+		"en"		"{olive}[TFDB] {darkmagenta}NER{default} is now {red}disabled{default} due to the insufficient amount of players."
 	}
 
 	"Dodgeball_Solo_Toggled_On"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}Solo Mode{default} is now {community}enabled{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}Solo Mode{default} is now {community}enabled{default}."
 	}
 
 	"Dodgeball_Solo_Toggled_Off"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}Solo Mode{default} is now {red}disabled{default}."
+		"en"		"{olive}[TFDB] {darkmagenta}Solo Mode{default} is now {red}disabled{default}."
 	}
 
 	"Dodgeball_Solo_NER_Notify_Not_Respawned"
@@ -203,7 +203,7 @@
 
 	"Dodgeball_Solo_Not_Possible_Last_Alive"
 	{
-		"en"		"{olive}[TFDB]{default} {darkmagenta}Solo Mode {red}cannot{default} be enabled because you are the last player alive."
+		"en"		"{olive}[TFDB] {darkmagenta}Solo Mode {red}cannot{default} be enabled because you are the last player alive."
 	}
 
 	"Dodgeball_Solo_Not_Possible_No_Teammates"
@@ -225,6 +225,6 @@
 	{
 		// 1:All soloers
 		"#format"	"{1:s}"
-		"en"		"{olive}[TFDB]{default} {darkmagenta}Soloers{default}: {darkorange}{1}{default}"
+		"en"		"{olive}[TFDB] {darkmagenta}Soloers{default}: {darkorange}{1}{default}"
 	}
 }

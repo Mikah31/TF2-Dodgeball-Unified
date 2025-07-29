@@ -13,14 +13,14 @@
 	"Dodgeball_Death_Message"
 	{
 		// 1:Name of person who died, 2:Admin speed, 3:Speed MpH, 4:Deflection count, 5:Curving factor
-		"pt"		"{olive}[TFDB]{default} {burlywood}{1}{default} morreu para um foguete a {red}{3}{default} MpH após {red}{4}{default} deflexões."
+		"pt"		"{olive}[TFDB] {burlywood}{1}{default} morreu para um foguete a {red}{3}{default} MpH após {red}{4}{default} deflexões."
 	}
 
 	"Dodgeball_Death_Message_MaxSpeed"
 	{
 		// 1:Name of person who died, 2:Admin speed, 3:(actual)Speed MpH, 4:Deflection count, 5:Curving factor, 6:(fake)Speed MpH
 		// Difference 3 & 6 -> 3 is limited by maxvelocity, 6 is not
-		"pt"		"{olive}[TFDB]{default} {burlywood}{1}{default} morreu para um foguete a {red}{3}{default} MpH. Fator de curva: {red}{5}{default} após {red}{4}{default} deflexões."
+		"pt"		"{olive}[TFDB] {burlywood}{1}{default} morreu para um foguete a {red}{3}{default} MpH. Fator de curva: {red}{5}{default} após {red}{4}{default} deflexões."
 	}
 
 	"Dodgeball_Hud_Speedometer"
@@ -59,7 +59,7 @@
 	"Dodgeball_Delay_Announce_All"
 	{
 		// 1:Name of person delaying
-		"pt"		"{olive}[TFDB]{default} {darkorange}{1}{default} está atrasando; o foguete será acelerado."
+		"pt"		"{olive}[TFDB] {darkorange}{1}{default} está atrasando; o foguete será acelerado."
 	}
 
 	"Dodgeball_Steal_Warning_Client"
@@ -98,13 +98,13 @@
 	"Dodgeball_No_Steals_Announce_All"
 	{
 		// 1:Name of person that can not steal anymore
-		"pt"		"{olive}[TFDB]{default} {darkorange}{1}{default} não pode mais roubar foguetes."
+		"pt"		"{olive}[TFDB] {darkorange}{1}{default} não pode mais roubar foguetes."
 	}
 
 	"Dodgeball_Steal_Announce_Slay_All"
 	{
 		// 1:Name of person slain for stealing
-		"pt"		"{olive}[TFDB]{default} {darkorange}{1}{default} foi assassinado por roubar foguetes."
+		"pt"		"{olive}[TFDB] {darkorange}{1}{default} foi assassinado por roubar foguetes."
 	}
 
 	"Dodgeball_Vote_Conflict"
@@ -125,12 +125,12 @@
 
 	"Dodgeball_FFA_Enabled"
 	{
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Mata-Mata {community}ativado{default}."
+		"pt"		"{olive}[TFDB] {darkmagenta}Mata-Mata {community}ativado{default}."
 	}
 
 	"Dodgeball_FFA_Disabled"
 	{
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Mata-Mata {red}desativado{default}."
+		"pt"		"{olive}[TFDB] {darkmagenta}Mata-Mata {red}desativado{default}."
 	}
 
 	"Dodgeball_FFA_Disabled_By_New_Config"
@@ -151,17 +151,17 @@
 
 	"Dodgeball_NER_Enabled"
 	{
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Rodadas Sem Fim {community}ativadas{default}."
+		"pt"		"{olive}[TFDB] {darkmagenta}Rodadas Sem Fim {community}ativadas{default}."
 	}
 
 	"Dodgeball_NER_Forcefully_Enabled"
 	{
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Rodadas Sem Fim{default} forçadamente {community}ativadas{default}."
+		"pt"		"{olive}[TFDB] {darkmagenta}Rodadas Sem Fim{default} forçadamente {community}ativadas{default}."
 	}
 
 	"Dodgeball_NER_Disabled"
 	{
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Rodadas Sem Fim {red}desativadas{default}."
+		"pt"		"{olive}[TFDB] {darkmagenta}Rodadas Sem Fim {red}desativadas{default}."
 	}
 
 	"Dodgeball_NER_Disabled_By_New_Config"
@@ -176,12 +176,12 @@
 
 	"Dodgeball_Solo_Toggled_On"
 	{
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Modo Solo {community}ativado{default}."
+		"pt"		"{olive}[TFDB] {darkmagenta}Modo Solo {community}ativado{default}."
 	}
 
 	"Dodgeball_Solo_Toggled_Off"
 	{
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Modo Solo {red}desativado{default}."
+		"pt"		"{olive}[TFDB] {darkmagenta}Modo Solo {red}desativado{default}."
 	}
 
 	"Dodgeball_Solo_NER_Notify_Not_Respawned"
@@ -212,6 +212,6 @@
 	"Dodgeball_Solo_Announce_All_Soloers"
 	{
 		// 1:All soloers
-		"pt"		"{olive}[TFDB]{default} {darkmagenta}Soladores{default}: {darkorange}{1}{default}"
+		"pt"		"{olive}[TFDB] {darkmagenta}Soladores{default}: {darkorange}{1}{default}"
 	}
 }
