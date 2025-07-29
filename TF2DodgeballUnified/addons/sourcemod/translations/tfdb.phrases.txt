@@ -7,28 +7,27 @@
 
 	"Command_Disabled_By_Config"
 	{
-		"en"		"[{olive}TFDB{default}] This command is disabled in rocket config."
+		"en"		"[{olive}TFDB{default}] This command is disabled in the plugin's configuration."
 	}
 
 	"Dodgeball_Death_Message"
 	{
 		// 1:Name of person who died, 2:Admin speed, 3:Speed MpH, 4:Deflection count, 5:Curving factor
 		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f}"
-		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH at {red}{4}{default} deflections"
+		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH at {red}{4}{default} deflections."
 	}
-	
+
 	"Dodgeball_Death_Message_MaxSpeed"
 	{
 		// 1:Name of person who died, 2:Admin speed, 3:(actual)Speed MpH, 4:Deflection count, 5:Curving factor, 6:(fake)Speed MpH
 		// Difference 3 & 6 -> 3 is limited by maxvelocity, 6 is not
 		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f},{6:.0f}"
-		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH, CurveFactor: {red}{5}{default} at {red}{4}{default} deflections"
+		"en"		"[{olive}TFDB{default}] {burlywood}{1}{default} died to a rocket travelling at {red}{3}{default} MpH. Curve factor: {red}{5}{default} at {red}{4}{default} deflections."
 	}
 
 	"Dodgeball_Hud_Speedometer"
 	{
 		// 1:Admin speed, 2:Speed MpH, 3:Deflection count, 4:Curving factor
-		"#format"	"{1:.0f},{2:.0f},{3:i},{4:.2f}"
 		"en"		"Speed : {2} MpH | Deflections : {3}"
 	}
 
@@ -36,36 +35,36 @@
 	{
 		// 1:Admin speed, 2:(actual)Speed MpH, 3:Deflection count, 4:Curving factor, 5:(fake)Speed MpH
 		"#format"	"{1:.0f},{2:.0f},{3:i},{4:.2f},{5:.0f}"
-		"en"		"Curving factor : {4} | Deflections : {3}"
+		"en"		"Curve factor : {4} | Deflections : {3}"
 	}
 
 	"Dodgeball_Config_Loading_Default"
 	{
-		"en"		"[{olive}TFDB{default}] Config not supplied, using \"{darkorange}general.cfg{default}\"."
+		"en"		"[{olive}TFDB{default}] Configuration file not supplied. \"{darkorange}general.cfg{default}\" will be used."
 	}
 
 	"Dodgeball_Config_Loading_New_Config"
 	{
 		// 1:Name of new config, only output to person loading new config
 		"#format"	"{1:s}"
-		"en"		"[{olive}TFDB{default}] Loading config \"{darkorange}{1}{default}\"."
+		"en"		"[{olive}TFDB{default}] Loading configuration \"{darkorange}{1}{default}\"."
 	}
 
 	"Dodgeball_Config_Not_Found"
 	{
-		"en"		"[{olive}TFDB{default}] Could not find specified config file, config did not change."
+		"en"		"[{olive}TFDB{default}] Could not find the specified configuration file. The configuration was not changed."
 	}
 
 	"Dodgeball_New_Config_Announce_All"
 	{
-		"en"		"[{olive}TFDB{default}] Loaded new rocket config."
+		"en"		"[{olive}TFDB{default}] The new plugin configuration has been loaded."
 	}
 
 	"Dodgeball_Delay_Announce_All"
 	{
 		// 1:Name of person delaying
 		"#format"	"{1:N}"
-		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} is delaying, the rocket will now speed up."
+		"en"		"[{olive}TFDB{default}] {darkorange}{1}{default} is delaying; the rocket will now speed up."
 	}
 
 	"Dodgeball_Steal_Warning_Client"
@@ -89,7 +88,7 @@
 
 	"Dodgeball_Soft_Stealing_No_Steals"
 	{
-		"en"		"[{olive}TFDB{default}] You can {red}not{default} steal anymore rockets."
+		"en"		"[{olive}TFDB{default}] You {red}cannot{default} steal any more rockets."
 	}
 
 	"Dodgeball_Soft_Stealing_Not_Enabled"
@@ -101,7 +100,7 @@
 	{
 		// 1:Amount of steals done this life, 2:Max amount of steals for 1 life
 		"#format"	"{1:i},{2:i}"
-		"en"		"[{olive}TFDB{default}] You have used {darkorange}{1}{default} / {darkorange}{2}{default} steals for this life."
+		"en"		"[{olive}TFDB{default}] You have used {darkorange}{1}{default} / {darkorange}{2}{default} steals in this life."
 	}
 
 	"Dodgeball_No_Steals_Announce_All"
@@ -129,17 +128,17 @@
 		"#format"	"{1:.0f}"
 		"en"		"[{olive}TFDB{default}] Voting for {darkmagenta}FFA{default} is in cooldown for {darkorange}{1}{default} seconds."
 	}
-	
+
 	"Dodgeball_FFAVote_Failed"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} vote {red}failed{default}."
 	}
-	
+
 	"Dodgeball_FFA_Enabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} is now {community}enabled{default}."
 	}
-		
+
 	"Dodgeball_FFA_Disabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} is now {red}disabled{default}."
@@ -147,7 +146,7 @@
 
 	"Dodgeball_FFA_Disabled_By_New_Config"
 	{
-		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} has been {red}disabled{default} by new config."
+		"en"		"[{olive}TFDB{default}] {darkmagenta}FFA{default} has been {red}disabled{default} by the new configuration."
 	}
 
 	"Dodgeball_NERVote_Cooldown"
@@ -156,12 +155,12 @@
 		"#format"	"{1:.0f}"
 		"en"		"[{olive}TFDB{default}] Voting for {darkmagenta}NER{default} is in cooldown for {darkorange}{1}{default} seconds."
 	}
-	
+
 	"Dodgeball_NERVote_Failed"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} vote {red}failed{default}."
 	}
-	
+
 	"Dodgeball_NER_Enabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {community}enabled{default}."
@@ -169,9 +168,9 @@
 
 	"Dodgeball_NER_Forcefully_Enabled"
 	{
-		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is forcefully {community}enabled{default}."
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now forcefully {community}enabled{default}."
 	}
-		
+
 	"Dodgeball_NER_Disabled"
 	{
 		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {red}disabled{default}."
@@ -179,47 +178,47 @@
 
 	"Dodgeball_NER_Disabled_By_New_Config"
 	{
-		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} has been {red}disabled{default} by new config."
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} has been {red}disabled{default} by the new configuration."
 	}
 
 	"Dodgeball_NER_Not_Enough_Players_Disabled"
 	{
-		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {red}disabled{default} due to not enough players."
+		"en"		"[{olive}TFDB{default}] {darkmagenta}NER{default} is now {red}disabled{default} due to the insufficient amount of players."
 	}
 
 	"Dodgeball_Solo_Toggled_On"
 	{
-		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo{default} is now {community}enabled{default}."
+		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo Mode{default} is now {community}enabled{default}."
 	}
 
 	"Dodgeball_Solo_Toggled_Off"
 	{
-		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo{default} is now {red}disabled{default}."
+		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo Mode{default} is now {red}disabled{default}."
 	}
 
 	"Dodgeball_Solo_NER_Notify_Not_Respawned"
 	{
-		"en"		"[{olive}TFDB{default}] You will be respawned at the end of the round, as you have {darkmagenta}solo{default} {community}enabled{default}."
+		"en"		"[{olive}TFDB{default}] You will respawn at the end of the round because you have {darkmagenta}Solo Mode {community}enabled{default}."
 	}
 
 	"Dodgeball_Solo_Not_Possible_Last_Alive"
 	{
-		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo{default} can {red}not{default} be enabled, as you are the last player alive."
+		"en"		"[{olive}TFDB{default}] {darkmagenta}Solo Mode {red}cannot{default} be enabled because you are the last player alive."
 	}
 
 	"Dodgeball_Solo_Not_Possible_No_Teammates"
 	{
-		"en"		"[{olive}TFDB{default}] Your {darkmagenta}solo{default} has been {red}disabled{default} as you have no alive teammates."
+		"en"		"[{olive}TFDB{default}] Your {darkmagenta}Solo Mode{default} has been {red}disabled{default} because you have no alive teammates."
 	}
 
 	"Dodgeball_Solo_Not_Possible_NER_Would_End"
 	{
-		"en"		"[{olive}TFDB{default}] Your {darkmagenta}solo{default} has been {red}disabled{default} as otherwise NER would have ended."
+		"en"		"[{olive}TFDB{default}] Your {darkmagenta}Solo Mode{default} has been {red}disabled{default} as otherwise NER would have ended."
 	}
 
 	"Dodgeball_Solo_Disabled_By_New_Config"
 	{
-		"en"		"[{olive}TFDB{default}] Your {darkmagenta}solo{default} has been {red}disabled{default} by new config."
+		"en"		"[{olive}TFDB{default}] Your {darkmagenta}Solo Mode{default} has been {red}disabled{default} by the new configuration."
 	}
 
 	"Dodgeball_Solo_Announce_All_Soloers"
