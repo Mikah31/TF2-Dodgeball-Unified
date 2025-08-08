@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.7.1"
+#define PLUGIN_VERSION     "1.7.2"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -212,7 +212,7 @@ void EnableDodgeball()
 	g_hMainHudSync = CreateHudSynchronizer();
 
 	// Remove airblast cost & arena queue
-	SetConVarFloat(FindConVar("tf_flamethrower_burstammo"), 0.0); // default 25.0
+	SetConVarFloat(FindConVar("tf_flamethrower_burstammo"), 0.0); // default 20.0
 	SetConVarBool(FindConVar("tf_arena_use_queue"), false); // default true
 
 	// Parsing rocket configs
@@ -246,7 +246,7 @@ void DisableDodgeball()
 	UnhookEvent("object_deflected", OnObjectDeflected);
 
 	// Resetting to default
-	SetConVarFloat(FindConVar("tf_flamethrower_burstammo"), 25.0);
+	SetConVarFloat(FindConVar("tf_flamethrower_burstammo"), 20.0);
 	SetConVarBool(FindConVar("tf_arena_use_queue"), true);
 	SetConVarFloat(FindConVar("sv_maxvelocity"), 3500.0);
 
