@@ -28,6 +28,7 @@
 	"Dodgeball_Hud_Speedometer"
 	{
 		// 1:Admin speed, 2:Speed MpH, 3:Deflection count, 4:Curving factor
+		"#format"	"{1:.0f},{2:.0f},{3:i},{4:.2f}"
 		"en"		"Speed : {2} MpH | Deflections : {3}"
 	}
 
@@ -228,3 +229,4 @@
 		"en"		"{olive}[TFDB] {darkmagenta}Soloers{default}: {darkorange}{1}{default}"
 	}
 }
+
