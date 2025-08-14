@@ -14,7 +14,7 @@
 	{
 		// 1:Name of person who died, 2:Admin speed, 3:Speed MpH, 4:Deflection count, 5:Curving factor
 		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f}"
-		"en"		"{olive}[TFDB] {burlywood}{1}{default} died to a rocket travelling {red}{3}{default} MpH at {red}{4}{default} deflections."
+		"en"		"{olive}[TFDB] {burlywood}{1}{default} died to a rocket travelling at {red}{3}{default} MpH after {red}{4}{default} deflections."
 	}
 
 	"Dodgeball_Death_Message_MaxSpeed"
@@ -22,7 +22,7 @@
 		// 1:Name of person who died, 2:Admin speed, 3:(actual)Speed MpH, 4:Deflection count, 5:Curving factor, 6:(fake)Speed MpH
 		// Difference 3 & 6 -> 3 is limited by maxvelocity, 6 is not
 		"#format"	"{1:N},{2:.0f},{3:.0f},{4:i},{5:.2f},{6:.0f}"
-		"en"		"{olive}[TFDB] {burlywood}{1}{default} died to a rocket travelling at {red}{3}{default} MpH. Curve factor: {red}{5}{default} at {red}{4}{default} deflections."
+		"en"		"{olive}[TFDB] {burlywood}{1}{default} died to a rocket travelling at {red}{3}{default} MpH. Curve factor: {red}{5}{default} after {red}{4}{default} deflections."
 	}
 
 	"Dodgeball_Hud_Speedometer"
