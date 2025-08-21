@@ -125,6 +125,8 @@ enum struct TFDBConfig
 	bool bStolenRocketsDoDamage;
 	bool bAnnounceSteals;
 	float fWallingDistance;
+
+	bool bAnnounceDeaths;
 	
 	// Orbitting
 	float fDelayTime; // Delay time before rocket starts speeding up
@@ -165,13 +167,15 @@ enum struct TFDBConfig
 #define SOUND_ALERT 		"weapons/sentry_spot.wav"
 #define SOUND_SPAWN 		"weapons/sentry_rocket.wav"
 #define SOUND_SPEEDUP   	"misc/doomsday_lift_warning.wav"
-#define SOUND_NER_RESPAWNED	")ambient/alarms/doomsday_lift_alarm.wav"
+#define SOUND_NER_RESPAWNED	"ambient/alarms/doomsday_lift_alarm.wav"
 
 // ---- Macros -----------------------------------------
 // Rocket behaviour (can) change within these ranges to target
 #define ORBIT_RANGE 	250.0	// We are in orbit inside of this range
 #define WAVE_RANGE		300.0	// We wave outside of this range
 #define SPIKING_RANGE	550.0	// Spiking outside of this range
+
+#define MAX_ROCKETS 16
 
 // ---- Forwards ---------------------------------------
 
@@ -326,7 +330,7 @@ native bool TFDB_SetRocketByIndex(int iIndex, any rocket[sizeof(Rocket)]);
 /**
  * Checks how many rockets are targetting the player.
  * 
- * @return		Number of rockets targetting the client, 0 if error or not a rocket target.
+ * @return		Number of rockets targetting the client, 0 on error or not a rocket target.
  * @error		Target does not exist.
  */
 native int TFDB_NumRocketsTargetting(int iClient);

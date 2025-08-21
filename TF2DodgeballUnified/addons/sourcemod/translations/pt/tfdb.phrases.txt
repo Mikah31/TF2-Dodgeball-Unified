@@ -214,4 +214,24 @@
 		// 1:All soloers
 		"pt"		"{olive}[TFDB] {darkmagenta}Soladores{default}: {darkorange}{1}{default}"
 	}
+	
+	"Dodgeball_Supershot_Locked"
+	{
+		"pt"		"_Supershot Locked_"
+	}
+
+	"Dodgeball_Supershot_Being_Locked"
+	{
+		"pt"		"_Locked by Supershot_"
+	}
+
+	"Dodgeball_Supershot_Locking"
+	{
+		"pt"		"_Locking Supershot_"
+	}
+
+	"Dodgeball_Supershot_Cancelled"
+	{
+		"pt"		"_{olive}[TFDB]{default} Supershot was {red}cancelled{default} due to target being targetted by other rockets._"
+	}
 }

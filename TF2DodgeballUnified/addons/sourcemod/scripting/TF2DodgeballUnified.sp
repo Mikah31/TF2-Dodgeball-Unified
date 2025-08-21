@@ -17,7 +17,7 @@
 // ---- Plugin information --------------------------
 #define PLUGIN_NAME        "[TF2] Dodgeball Unified"
 #define PLUGIN_AUTHOR      "Mikah"
-#define PLUGIN_VERSION     "1.7.2"
+#define PLUGIN_VERSION     "1.7.3"
 #define PLUGIN_URL         "https://github.com/Mikah31/TF2-Dodgeball-Unified"
 
 public Plugin myinfo =
@@ -64,7 +64,10 @@ Address g_pMyWearables; // Fix for wearables' colours not changing
 ConVar g_Cvar_HornVolumeLevel;
 
 // Speedometer hud
-char g_hHudText[225]; // 225 is character limit for hud text
+int g_iClientLang[MAXPLAYERS + 1]; // Individual translations
+StringMap g_hSpeedometerHudText;
+StringMap g_hSpeedometerHudColor;
+
 bool g_bCurving; // Longer text length so it is uncentered
 Handle g_hHudTimer;
 Handle g_hMainHudSync;
@@ -116,7 +119,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_ner", CmdToggleNER, ADMFLAG_CONFIG, "Forcefully toggle NER (Never ending rounds)");
 	RegConsoleCmd("sm_votener", CmdVoteNER, "Vote to toggle NER");
 	g_Cvar_HornVolumeLevel = CreateConVar("NER_volume_level", "0.75", "Volume level of the horn played when respawning players.", _, true, 0.0, true, 1.0);
-	g_Cvar_SeeBotsAsPlayers = CreateConVar("NER_BotDebug", "0", "Makes it so that NER plugin ignores bots & view them as players.", _, true, 0.0, true, 1.0);
+	g_Cvar_SeeBotsAsPlayers = CreateConVar("NER_BotDebug", "0", "Makes it such that the NER plugin ignores bots & view them as players.", _, true, 0.0, true, 1.0);
 	g_Cvar_RespawnProtection = CreateConVar("NER_RespawnProtection", "1.0", "Amount of time that a player is protected for after respawning.", _, true, 0.0);
 
 	// Solo toggle
@@ -187,6 +190,9 @@ void EnableDodgeball()
 	g_rockets = new ArrayList(sizeof(Rocket));
 	g_soloQueue = new ArrayStack(sizeof(g_iRedSpawnerEntity)); // sizeof(int)
 
+	g_hSpeedometerHudText = new StringMap();
+	g_hSpeedometerHudColor = new StringMap();
+
 	// Hooking events
 	HookEvent("arena_round_start", OnSetupFinished, EventHookMode_PostNoCopy);
 	HookEvent("teamplay_round_win", OnRoundEnd, EventHookMode_PostNoCopy);
@@ -218,10 +224,20 @@ void EnableDodgeball()
 	// Parsing rocket configs
 	ParseConfig();
 
-	// Respawn protection NER & Solo
 	for (int i = 1; i <= MaxClients; i++)
+	{
 		if (IsClientInGame(i))
+		{
+			// Respawn protection NER & Solo
 			SDKHook(i, SDKHook_OnTakeDamage, OnClientTakesDamage);
+
+			// Translation speedometer
+			g_iClientLang[i] = GetClientLanguage(i);
+
+			// Resetting timed airblast delays
+			g_fTimeNextAirblast[i] = 0.0;
+		}
+	}
 
 	g_bEnabled = true;
 }
@@ -235,6 +251,9 @@ void DisableDodgeball()
 
 	g_soloQueue.Clear();
 	delete g_soloQueue;
+
+	delete g_hSpeedometerHudText;
+	delete g_hSpeedometerHudColor;
 
 	// Unhooking all events
 	UnhookEvent("arena_round_start", OnSetupFinished, EventHookMode_PostNoCopy);
@@ -635,8 +654,43 @@ void CreateRocket(int iSpawnerEntity, int iTeam)
 
 	Forward_OnRocketCreated(g_rockets.Length, rocket);
 
-	Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
 	g_bCurving = false;
+
+	char sHudText[225]; // 225 is character limit for hud text
+	
+	// This will have a lot of overlap, but its a better solution than trying to find all unique languages & coupling them to a client
+	for (int iClient = 1; iClient <= MaxClients; iClient++)
+	{
+		if (!IsClientInGame(iClient))
+			break;
+		
+		Format(sHudText, sizeof(sHudText), "%T", "Dodgeball_Hud_Speedometer", iClient, rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
+
+		if (FindCharInString(sHudText, '{') != -1)
+		{
+			char buffer[2][16];
+
+			// Isolating first color code in translation
+			ExplodeString(sHudText, "{", buffer, sizeof(buffer), sizeof(buffer[]));
+			SplitString(buffer[1], "}", buffer[1], sizeof(buffer[])); // buffer[1] = isolated color
+
+			// Adding back brackets which were deleted before and retrieving the hex color code
+			Format(buffer[1], sizeof(buffer[]), "{%s}", buffer[1]);
+			CFormatColor(buffer[1], sizeof(buffer[]));
+
+			int iColor = HexToDec(buffer[1]);
+			g_hSpeedometerHudColor.SetValue(view_as<char>(g_iClientLang[iClient]), iColor, true);
+
+			CRemoveTags(sHudText, sizeof(sHudText));
+		}
+		else
+		{
+			// 16777215 = FFFFFF = white
+			g_hSpeedometerHudColor.SetValue(view_as<char>(g_iClientLang[iClient]), 16777215, true);
+		}
+
+		g_hSpeedometerHudText.SetString(view_as<char>(g_iClientLang[iClient]), sHudText, true);
+	}
 
 	g_rockets.PushArray(rocket);
 	DispatchSpawn(rocket.iEntity);
@@ -765,16 +819,45 @@ public void OnObjectDeflected(Event hEvent, char[] strEventName, bool bDontBroad
 
 	Forward_OnRocketDeflect(iIndex, rocket);
 
-	// Updating hud text, reflect 'curving' of the rocket aswell
-	if (rocket.fSpeed > currentConfig.fMaxVelocity)
+	g_bCurving = rocket.fSpeed > currentConfig.fMaxVelocity;
+
+	char sHudText[225];
+
+	for (int iClient = 1; iClient <= MaxClients; iClient++)
 	{
-		Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer_MaxSpeed", rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity, rocket.SpeedMpH());
-		g_bCurving = true;
-	}
-	else
-	{
-		Format(g_hHudText, sizeof(g_hHudText), "%t", "Dodgeball_Hud_Speedometer", rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
-		g_bCurving = false;
+		if (!IsClientInGame(iClient))
+			break;
+		
+		Format(sHudText, sizeof(sHudText), "%T", g_bCurving ? "Dodgeball_Hud_Speedometer_MaxSpeed": "Dodgeball_Hud_Speedometer", iClient,
+				rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity, rocket.SpeedMpH());
+
+		// Extracting speedometer color from translation file and deleting color tags
+		// Tried multicolor, but not possible unless using multiple HUD text elements,
+		// PrintCenterText does not support color in tf2, and cannot change location to below midpoint of screen
+		if (FindCharInString(sHudText, '{') != -1)
+		{
+			char buffer[2][16];
+
+			// Isolating first color code in translation
+			ExplodeString(sHudText, "{", buffer, sizeof(buffer), sizeof(buffer[]));
+			SplitString(buffer[1], "}", buffer[1], sizeof(buffer[])); // buffer[1] = isolated color
+
+			// Adding back brackets which were deleted before and retrieving the hex color code
+			Format(buffer[1], sizeof(buffer[]), "{%s}", buffer[1]);
+			CFormatColor(buffer[1], sizeof(buffer[]));
+
+			int iColor = HexToDec(buffer[1]);
+			g_hSpeedometerHudColor.SetValue(view_as<char>(g_iClientLang[iClient]), iColor, true);
+
+			CRemoveTags(sHudText, sizeof(sHudText));
+		}
+		else
+		{
+			// 16777215 = FFFFFF = white
+			g_hSpeedometerHudColor.SetValue(view_as<char>(g_iClientLang[iClient]), 16777215, true);
+		}
+
+		g_hSpeedometerHudText.SetString(view_as<char>(g_iClientLang[iClient]), sHudText, true);
 	}
 
 	g_rockets.SetArray(iIndex, rocket);
@@ -791,7 +874,7 @@ int SelectTarget(int iTeam, int iOwner, float fPosition[3], float fDirection[3])
 		if (!IsValidClient(iClient)) continue;
 		if (iTeam == GetClientTeam(iClient)) continue;	// Selecting a target NOT on iTeam, where iTeam is the rockets team
 		if (iOwner == iClient) continue;				// Do not target owner (for FFA rockets)
-		if (currentConfig.iPlayerCountPerRocket[0] && currentConfig.bOneRocketPerTarget && NumRocketsTargetting(iClient) > 0) continue; // Do not target a person who has a rocket targetting them already
+		if (currentConfig.iPlayerCountPerRocket[0] && currentConfig.bOneRocketPerTarget && NumRocketsTargetting(iClient)) continue; // Do not target a person who has a rocket targetting them already
 
 		static float fClientPosition[3]; GetClientEyePosition(iClient, fClientPosition);
 		static float fDirectionToClient[3]; MakeVectorFromPoints(fPosition, fClientPosition, fDirectionToClient);
@@ -822,7 +905,7 @@ public void OnSetupFinished(Event hEvent, char[] strEventName, bool bDontBroadca
 
 	//PopulateRocketSpawners(); // We've done this already when parsing config, I don't know if this breaks things, as other plugins always set it at the start of the round again
 	g_fLastRocketSpawned = 0.0;
-	g_iBot = GetBotClient();
+	g_iBot = GetFirstBotClient();
 
 	if (!g_bNERenabled && currentConfig.iForceNER >= 2)
 	{
@@ -897,7 +980,7 @@ public Action ManageRockets(Handle hTimer, any aData)
 
 		int iLowestPlayerCountAlive = iAliveBlue < iAliveRed ? iAliveBlue : iAliveRed;
 
-		for (int i = 0; i < 16; i++)
+		for (int i = 0; i < MAX_ROCKETS; i++)
 		{
 			if (currentConfig.iPlayerCountPerRocket[i] && currentConfig.iPlayerCountPerRocket[i] <= iLowestPlayerCountAlive)
 				iRocketCount++;
@@ -924,16 +1007,21 @@ public Action ManageRockets(Handle hTimer, any aData)
 public Action RocketSpeedometer(Handle hTimer, any aData)
 {
 	if (!g_bRoundStarted || !g_bEnabled || !currentConfig.bSpeedometer) return Plugin_Continue;
-	
+
+	int iColor;
+	char sHudText[225]; // 225 is character limit for hud text
+
 	for (int iClient = 1; iClient <= MaxClients; iClient++)
 	{
 		if (!IsClientInGame(iClient)) continue;
 
-		if (g_bCurving)
-			SetHudTextParams(0.35, 0.925, 0.5, 255, 255, 255, 255, 0, 0.0, 0.12, 0.12);
-		else
-			SetHudTextParams(0.38, 0.925, 0.5, 255, 255, 255, 255, 0, 0.0, 0.12, 0.12);
-		ShowSyncHudText(iClient, g_hMainHudSync, g_hHudText);
+		// Using view_as<char> could be dangerous, as we don't know how its handled internally
+		g_hSpeedometerHudColor.GetValue(view_as<char>(g_iClientLang[iClient]), iColor);
+
+		SetHudTextParams(g_bCurving ? 0.35 : 0.38, 0.925, 0.1, (iColor >> 16) & 0xFF, (iColor >> 8) & 0xFF, iColor & 0xFF, 255, 0, 0.0, 0.10, 0.10);
+
+		g_hSpeedometerHudText.GetString(view_as<char>(g_iClientLang[iClient]), sHudText, sizeof(sHudText));
+		ShowSyncHudText(iClient, g_hMainHudSync, sHudText);
 	}
 
 	return Plugin_Continue;
@@ -1036,9 +1124,13 @@ public void OnClientPutInServer(int iClient)
 	g_iSteals[iClient] = 0;
 	g_iOldTeam[iClient] = 0;
 	g_bSoloEnabled[iClient] = false;
+	g_fTimeNextAirblast[iClient] = 0.0;
 
 	if (iClient > 0 && IsClientInGame(iClient))
+	{
 		SDKHook(iClient, SDKHook_OnTakeDamage, OnClientTakesDamage);
+		g_iClientLang[iClient] = GetClientLanguage(iClient);
+	}
 }
 
 public Action OnPlayerRunCmd(int iClient, int &iButtons)
@@ -1142,10 +1234,11 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		Rocket rocket;
 		g_rockets.GetArray(iIndex, rocket);
 
-		if (rocket.fSpeed > currentConfig.fMaxVelocity)
-			CPrintToChatAll("%t", "Dodgeball_Death_Message_MaxSpeed", iClient, rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity, rocket.SpeedMpH());
-		else
-			CPrintToChatAll("%t", "Dodgeball_Death_Message", iClient, rocket.fSpeed, rocket.SpeedMpH(), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity);
+		if (currentConfig.bAnnounceDeaths)
+		{
+			CPrintToChatAll("%t", rocket.fSpeed > currentConfig.fMaxVelocity ? "Dodgeball_Death_Message_MaxSpeed" : "Dodgeball_Death_Message", iClient,
+							rocket.fSpeed, rocket.SpeedMpH(currentConfig.fMaxVelocity), rocket.iDeflectionCount, rocket.fSpeed / currentConfig.fMaxVelocity, rocket.SpeedMpH());
+		}
 	}
 	
 	// If it is a 1v1 (someone left / went to spectator, disable NER)
@@ -1202,7 +1295,7 @@ public void OnPlayerDeath(Event hEvent, char[] strEventName, bool bDontBroadcast
 		if (g_bNERenabled && GetTeamAliveCount(AnalogueTeam(g_iLastDeadTeam)) == 1)
 		{
 			// Let round end if bot voted off & round didn't forcefully end
-			if (g_iBot != GetBotClient())
+			if (g_iBot != GetFirstBotClient())
 				return;
 
 			char buffer[512], namebuffer[64]; // keeping track of soloer names
@@ -1500,13 +1593,13 @@ bool ParseConfig(char[] strConfigFile = "general.cfg", bool bUpdateGameplayConfi
 		ReplaceString(strBuffer, sizeof(strBuffer), " ", "");
 
 		// Clear previous array, we cannot set first index to 0 as we do not know what comes after ("1,2,3"->"2,2", 3 is not cleared)
-		for (int i = 0; i < 16; i++) // 16 is the max amount of rockets, and size of array
+		for (int i = 0; i < MAX_ROCKETS; i++)
 			currentConfig.iPlayerCountPerRocket[i] = 0;
 
 		// Writing our input string "1, 2" to an int array
 		if (strBuffer[0] != '\0')
 		{
-			char strExploded[16][4]; 
+			char strExploded[MAX_ROCKETS][4]; 
 			int iLength = ExplodeString(strBuffer, ",", strExploded, sizeof(strExploded), sizeof(strExploded[]));
 
 			for (int n = 0; n < iLength; n++)
@@ -1538,6 +1631,8 @@ bool ParseConfig(char[] strConfigFile = "general.cfg", bool bUpdateGameplayConfi
 		cfg.GetBool("gameplay.soft antisteal", currentConfig.bSoftAntiSteal);
 		cfg.GetFloat("gameplay.walling distance", currentConfig.fWallingDistance);
 		cfg.GetBool("gameplay.announce stealing", currentConfig.bAnnounceSteals);
+
+		cfg.GetBool("gameplay.announce deaths", currentConfig.bAnnounceDeaths);
 
 		// Solo
 		cfg.GetBool("gameplay.solo enabled", currentConfig.bSoloAllowed);
@@ -1767,7 +1862,7 @@ char[] ShuntingYard(char[] strFormula)
 					popBuffer = outputStack.Pop();
 					outputStack.Push(popBuffer);
 
-					if (view_as<int>(popBuffer) != 32) // char(32) -> ' '
+					if (view_as<int>(popBuffer) != view_as<int>(' '))
 						outputStack.Push(' ');
 				}
 
@@ -1781,11 +1876,11 @@ char[] ShuntingYard(char[] strFormula)
 
 			if (iPrecendence == -1) // Found a )
 			{
-				while (view_as<int>(buffer) != 40) // Pop onto output until (
+				while (view_as<int>(buffer) != view_as<int>('(')) // Pop onto output until (
 				{
 					buffer = operatorStack.Pop();
 
-					if (view_as<int>(buffer) != 40) // Do not write ( back onto output stack
+					if (view_as<int>(buffer) != view_as<int>('(')) // Do not write ( back onto output stack
 					{
 						outputStack.Push(' ');
 						outputStack.Push(buffer);
@@ -1814,7 +1909,7 @@ char[] ShuntingYard(char[] strFormula)
 		popBuffer = outputStack.Pop();
 		outputStack.Push(popBuffer);
 
-		if (!bLastWasDigit && view_as<int>(popBuffer) != 32)
+		if (!bLastWasDigit && view_as<int>(popBuffer) != view_as<int>(' '))
 			outputStack.Push(' ');
 	}
 
@@ -1978,14 +2073,12 @@ public Action CmdVoteFFA(int iClient, int iArgs)
 		return Plugin_Handled;
 	}
 
-	char strMode[16];
-	strMode = g_bFFAenabled ? "Disable" : "Enable";
 	g_iVoteTypeInProgress = 1;
 	
 	Menu hMenu = new Menu(VoteMenuHandler);
 	hMenu.VoteResultCallback = VoteResultHandler;
 	
-	hMenu.SetTitle("%s FFA mode?", strMode);
+	hMenu.SetTitle("%s FFA mode?", g_bFFAenabled ? "Disable" : "Enable");
 	
 	hMenu.AddItem("0", "Yes");
 	hMenu.AddItem("1", "No");
@@ -2082,14 +2175,12 @@ public Action CmdVoteNER(int iClient, int iArgs)
 		return Plugin_Handled;
 	}
 
-	char strMode[16];
-	strMode = g_bNERenabled ? "Disable" : "Enable";
 	g_iVoteTypeInProgress = 2;
 	
 	Menu hMenu = new Menu(VoteMenuHandler);
 	hMenu.VoteResultCallback = VoteResultHandler;
 	
-	hMenu.SetTitle("%s NER mode?", strMode);
+	hMenu.SetTitle("%s NER mode?", g_bNERenabled ? "Disable" : "Enable");
 	
 	hMenu.AddItem("0", "Yes");
 	hMenu.AddItem("1", "No");
@@ -2183,7 +2274,7 @@ void RemoveInvalidRockets()
 			if (currentConfig.bSoftAntiSteal && g_iSteals[rocket.iTarget] >= currentConfig.iMaxSteals && NumRocketsTargetting(rocket.iTarget) == 1)
 			{
 				int iWeapon = GetEntPropEnt(rocket.iTarget, Prop_Data, "m_hActiveWeapon");
-				TF2Attrib_SetByDefIndex(iWeapon, 826, 1.0);
+				TF2Attrib_SetByDefIndex(iWeapon, 826, 1.0); // They still have 1 airblast where they are allowed to steal because of how tf2 works..
 			}
 
 			g_fLastRocketSpawned = GetGameTime(); // Delay until spawning next rocket
@@ -2290,7 +2381,7 @@ bool BothTeamsPlaying()
 	return GetTeamAliveCount(view_as<int>(TFTeam_Blue)) > 0 && GetTeamAliveCount(view_as<int>(TFTeam_Red)) > 0;
 }
 
-int GetBotClient()
+int GetFirstBotClient()
 {
 	// Shouldn't really use this 'shortcut',
 	// we should probably also check if bot is not in spectator or something along those lines
@@ -2355,6 +2446,38 @@ void ChangeAliveClientTeam(int iClient, int iTeam)
 		SetEntProp(iWearable, Prop_Send, "m_nSkin", (iTeam == view_as<int>(TFTeam_Blue)) ? 1 : 0);
 		SetEntProp(iWearable, Prop_Send, "m_iTeamNum", iTeam);
 	}
+}
+
+int HexToDec(const char[] hex)
+{
+	int iResult = 0;
+
+	for (int i = 0; i < strlen(hex); i++)
+	{
+		int iValue = HexCharToDec(hex[i]);
+
+		if (iValue == -1)
+			return iResult;
+		iResult = iResult * 16 + iValue;
+	}
+
+	return iResult;
+}
+ 
+int HexCharToDec(char ch)
+{
+	if (ch >= '0' && ch <= '9')
+		return ch - '0';
+	else if (ch >= 'A' && ch <= 'F')
+		return 10 + ch - 'A';
+	else if (ch >= 'a' && ch <= 'f')
+		return 10 + ch - 'a';
+
+	// This character is somehow at the front of the hex color strings after CFormatColor
+	if (ch == '\a') 
+		return 0;
+
+	return -1;
 }
 
 /*

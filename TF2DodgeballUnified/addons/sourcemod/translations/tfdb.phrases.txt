@@ -28,6 +28,7 @@
 	"Dodgeball_Hud_Speedometer"
 	{
 		// 1:Admin speed, 2:Speed MpH, 3:Deflection count, 4:Curving factor
+		// Color tags like {orange} can be used. The color used will color the whole speedometer, the color will be lighter than expected
 		"#format"	"{1:.0f},{2:.0f},{3:i},{4:.2f}"
 		"en"		"Speed : {2} MpH | Deflections : {3}"
 	}
@@ -35,6 +36,7 @@
 	"Dodgeball_Hud_Speedometer_MaxSpeed"
 	{
 		// 1:Admin speed, 2:(actual)Speed MpH, 3:Deflection count, 4:Curving factor, 5:(fake)Speed MpH
+		// Color tags like {orange} can be used. The color used will color the whole speedometer, the color will be lighter than expected
 		"#format"	"{1:.0f},{2:.0f},{3:i},{4:.2f},{5:.0f}"
 		"en"		"Curve factor : {4} | Deflections : {3}"
 	}
@@ -228,5 +230,24 @@
 		"#format"	"{1:s}"
 		"en"		"{olive}[TFDB] {darkmagenta}Soloers{default}: {darkorange}{1}{default}"
 	}
-}
 
+	"Dodgeball_Supershot_Locked"
+	{
+		"en"		"Supershot Locked"
+	}
+
+	"Dodgeball_Supershot_Being_Locked"
+	{
+		"en"		"Locked by Supershot"
+	}
+
+	"Dodgeball_Supershot_Locking"
+	{
+		"en"		"Locking Supershot"
+	}
+
+	"Dodgeball_Supershot_Cancelled"
+	{
+		"en"		"{olive}[TFDB]{default} Supershot was {red}cancelled{default} due to target being targetted by other rockets."
+	}
+}
