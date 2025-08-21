@@ -19,6 +19,8 @@ Adds back the supershot feature from Dodgeball Redux, requires both the main and
         "cancelled text"         "1"            // Print chat message on cancelled supershot
         "cancelled sound"        "1"            // Play sound on cancelled supershot
 
+        "hudtext position"       "0.89"         // Vertical position of supershot hudtext, 0.89 = default
+
         "speed multiplier"       "2.0"          // Multiplier on speed on supershot
         "turnrate multiplier"    "1.0"          // Multiplier on turnrate on supershot
     }
